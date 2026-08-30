@@ -30,22 +30,29 @@ bash scripts/run_scripts/run_unifolm_vla_train_g1_dex3.sh
 
 | Thema | Datei |
 |---|---|
-| Teleop-Umgebung `1_cube_stack` (Portierung, Tuning, Aufnahme-Workflow) | [`docs/1_cube_stack_teleop_env.md`](docs/1_cube_stack_teleop_env.md) |
-| UnifoLM-VLA Finetuning von scratch (vollständige Vorgehensweise) | [`docs/unifolm_vla_scratch_finetuning_g1_dex3_blockstacking.md`](docs/unifolm_vla_scratch_finetuning_g1_dex3_blockstacking.md) |
-| UnifoLM-VLA lokaler Trainingsbefehl (Action-Head-Finetuning) | [`docs/unifolm_vla_local_training.md`](docs/unifolm_vla_local_training.md) |
-| Cube-Stack-Eval-Umgebung (Beobachtungs-/Aktionsformat) | [`docs/cube_stack_eval_env.md`](docs/cube_stack_eval_env.md) |
-| GR00T vs. UnifoLM-VLA -- Architekturvergleich | [`docs/groot_vs_unifolm_vla_vergleich.md`](docs/groot_vs_unifolm_vla_vergleich.md) |
-| Eval-Videos/-Ergebnisse | [`docs/eval_videos_unifolm_vla/`](docs/eval_videos_unifolm_vla/) |
+| Teleop-Umgebung `1_cube_stack` (Portierung, Tuning, Aufnahme-Workflow) | [`Dokumentation/Simulation/1_cube_stack_teleop_env.md`](Dokumentation/Simulation/1_cube_stack_teleop_env.md) |
+| Cube-Stack-Eval-Umgebung (Beobachtungs-/Aktionsformat) | [`Dokumentation/Simulation/cube_stack_eval_env.md`](Dokumentation/Simulation/cube_stack_eval_env.md) |
+| UnifoLM-VLA Finetuning von scratch (vollständige Vorgehensweise) | [`Dokumentation/Training/unifolm_vla_scratch_finetuning_g1_dex3_blockstacking.md`](Dokumentation/Training/unifolm_vla_scratch_finetuning_g1_dex3_blockstacking.md) |
+| UnifoLM-VLA lokaler Trainingsbefehl (Action-Head-Finetuning) | [`Dokumentation/Training/unifolm_vla_local_training.md`](Dokumentation/Training/unifolm_vla_local_training.md) |
+| GR00T vs. UnifoLM-VLA -- Architekturvergleich | [`Dokumentation/Training/groot_vs_unifolm_vla_vergleich.md`](Dokumentation/Training/groot_vs_unifolm_vla_vergleich.md) |
+| Eval-Videos/-Ergebnisse | [`Dokumentation/Training/eval_videos_unifolm_vla/`](Dokumentation/Training/eval_videos_unifolm_vla/) |
+| Datensätze (Quellen + eigene Aufnahmen) | [`Data/README.md`](Data/README.md) |
 
 ## Struktur
 
 ```
 Masterprojekt_G1_CubeStack/
 ├── Simulation/
-│   └── IsaacLab/       # Isaac Lab Checkout (Teleop-Env, Konvertierungs-/Replay-Skripte)
+│   ├── IsaacLab/                          # Isaac Lab Checkout (voll lauffähig)
+│   ├── Custom_Scripts_Env_Anpassungen/    # Übersichts-Kopien: Env-Configs, Closed-Loop-Eval
+│   └── Teleop/                            # Übersichts-Kopien: Aufnahme-/Replay-/Konvertierungs-Skripte
 ├── Training/
-│   └── UnifoLM-VLA/    # UnifoLM-VLA Framework (Training, Eval, Isaac-Sim-Bridge)
-├── docs/               # Anleitungen/Vorgehensweise/Ergebnisse
+│   ├── UnifoLM-VLA/                       # UnifoLM-VLA Framework (Training, Eval, Isaac-Sim-Bridge)
+│   └── Kisski_Submit/                     # Platzhalter -- KISSKI-Submit-Skripte folgen noch
+├── Dokumentation/
+│   ├── Simulation/                        # Doku zur Simulation-Seite
+│   └── Training/                          # Doku zur Training-/Eval-Seite
+├── Data/                                  # Verweise auf Datensätze (Hugging Face + lokale Pfade)
 └── README.md
 ```
 

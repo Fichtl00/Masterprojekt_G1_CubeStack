@@ -43,7 +43,7 @@ accelerate launch \
   --wandb_entity local
 ```
 
-Fertiges Run-Script: [`Training/UnifoLM-VLA/scripts/run_scripts/run_unifolm_vla_train_g1_dex3.sh`](../Training/UnifoLM-VLA/scripts/run_scripts/run_unifolm_vla_train_g1_dex3.sh) -- Pfade darin auf die eigene Umgebung anpassen.
+Fertiges Run-Script: [`Training/UnifoLM-VLA/scripts/run_scripts/run_unifolm_vla_train_g1_dex3.sh`](../../Training/UnifoLM-VLA/scripts/run_scripts/run_unifolm_vla_train_g1_dex3.sh) -- Pfade darin auf die eigene Umgebung anpassen.
 
 ## Wichtigste Flags erkl채rt
 
@@ -60,5 +60,5 @@ TensorBoard l채uft parallel zu wandb (offline-Modus) auf Port 6007 -- siehe Erg�
 
 ## Evaluation
 
-- **Open-Loop:** [`Training/UnifoLM-VLA/scripts/tools/open_loop_eval_g1_dex3.py`](../Training/UnifoLM-VLA/scripts/tools/open_loop_eval_g1_dex3.py)
-- **Closed-Loop:** siehe [`groot_vs_unifolm_vla_vergleich.md`](groot_vs_unifolm_vla_vergleich.md) f체r die Architektur (HTTP-Server + Isaac-Lab-Bridge) und [`cube_stack_eval_env.md`](cube_stack_eval_env.md) f체r die Eval-Umgebung.
+- **Open-Loop:** [`Training/UnifoLM-VLA/scripts/tools/open_loop_eval_g1_dex3.py`](../../Training/UnifoLM-VLA/scripts/tools/open_loop_eval_g1_dex3.py)
+- **Closed-Loop:** siehe [`groot_vs_unifolm_vla_vergleich.md`](groot_vs_unifolm_vla_vergleich.md) f체r die Architektur (HTTP-Server + Isaac-Lab-Bridge) und [`cube_stack_eval_env.md`](../Simulation/cube_stack_eval_env.md) f체r die Eval-Umgebung.
