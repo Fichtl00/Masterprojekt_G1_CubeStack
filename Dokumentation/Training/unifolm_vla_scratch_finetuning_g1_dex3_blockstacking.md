@@ -378,7 +378,7 @@ FastAPI-HTTP-Server wiederverwendet:
 
 2 Episoden, 100 max_steps, `--device cuda`: beide liefen sauber durch (112 Schritte, ~13s
 je Episode), RAM stabil (~16GB, kein Wachstum), Server antwortete durchgehend mit `200 OK`
-(~0.14s Inferenzzeit nach Cache-Warmup). Ergebnis (`eval_results_unifolm_vla.json`):
+(~0.14s Inferenzzeit nach Cache-Warmup). Ergebnis (`eval_results_unifolm_vla_action_head_only.json`):
 
 | Episode | Erfolg | Steps | Dauer |
 |---|---|---|---|
@@ -387,8 +387,8 @@ je Episode), RAM stabil (~16GB, kein Wachstum), Server antwortete durchgehend mi
 
 0/2 Erfolge bei nur 100 Schritten (≈6 Action-Chunks) für eine 3-Würfel-Stapelaufgabe ist
 für sich genommen nicht überraschend. Alle Artefakte gesichert unter
-`/home/omniverse-2/IsaacLab/eval_videos_unifolm_vla/`
-(`episode_001_grid.mp4`, `episode_002_grid.mp4`, `eval_results_unifolm_vla.json`,
+`/home/omniverse-2/IsaacLab/eval_videos_unifolm_vla_action_head_only/`
+(`episode_001_action_head_only_grid.mp4`, `episode_002_action_head_only_grid.mp4`, `eval_results_unifolm_vla_action_head_only.json`,
 `frames_comparison/` — extrahierte Einzelbilder).
 
 ### 8.4 Video-Review: vermutlich massive Sim-Real-Domain-Gap statt Modellfehler

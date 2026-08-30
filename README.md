@@ -35,7 +35,7 @@ bash scripts/run_scripts/run_unifolm_vla_train_g1_dex3.sh
 | UnifoLM-VLA Finetuning von scratch (vollständige Vorgehensweise) | [`Dokumentation/Training/unifolm_vla_scratch_finetuning_g1_dex3_blockstacking.md`](Dokumentation/Training/unifolm_vla_scratch_finetuning_g1_dex3_blockstacking.md) |
 | UnifoLM-VLA lokaler Trainingsbefehl (Action-Head-Finetuning) | [`Dokumentation/Training/unifolm_vla_local_training.md`](Dokumentation/Training/unifolm_vla_local_training.md) |
 | GR00T vs. UnifoLM-VLA -- Architekturvergleich | [`Dokumentation/Training/groot_vs_unifolm_vla_vergleich.md`](Dokumentation/Training/groot_vs_unifolm_vla_vergleich.md) |
-| Eval-Videos/-Ergebnisse | [`Dokumentation/Training/eval_videos_unifolm_vla/`](Dokumentation/Training/eval_videos_unifolm_vla/) |
+| Eval-Videos/-Ergebnisse | [`Dokumentation/Training/eval_videos_unifolm_vla_action_head_only/`](Dokumentation/Training/eval_videos_unifolm_vla_action_head_only/) |
 | Datensätze (Quellen + eigene Aufnahmen) | [`Data/README.md`](Data/README.md) |
 
 ## Struktur
