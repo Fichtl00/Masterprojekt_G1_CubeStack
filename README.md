@@ -35,7 +35,8 @@ bash scripts/run_scripts/run_unifolm_vla_train_g1_dex3.sh
 | UnifoLM-VLA Finetuning von scratch (vollständige Vorgehensweise) | [`Dokumentation/Training/unifolm_vla_scratch_finetuning_g1_dex3_blockstacking.md`](Dokumentation/Training/unifolm_vla_scratch_finetuning_g1_dex3_blockstacking.md) |
 | UnifoLM-VLA lokaler Trainingsbefehl (Action-Head-Finetuning) | [`Dokumentation/Training/unifolm_vla_local_training.md`](Dokumentation/Training/unifolm_vla_local_training.md) |
 | GR00T vs. UnifoLM-VLA -- Architekturvergleich | [`Dokumentation/Training/groot_vs_unifolm_vla_vergleich.md`](Dokumentation/Training/groot_vs_unifolm_vla_vergleich.md) |
-| Eval-Videos/-Ergebnisse | [`Dokumentation/Training/eval_videos_unifolm_vla_action_head_only/`](Dokumentation/Training/eval_videos_unifolm_vla_action_head_only/) |
+| Eval-Videos/-Ergebnisse (Action-Head-only) | [`Dokumentation/Training/eval_videos_unifolm_vla_action_head_only/`](Dokumentation/Training/eval_videos_unifolm_vla_action_head_only/) |
+| Warum KISSKI HPC für das volle Finetuning | [`Dokumentation/Training/kisski_hpc_ausweichen.md`](Dokumentation/Training/kisski_hpc_ausweichen.md) |
 | Datensätze (Quellen + eigene Aufnahmen) | [`Data/README.md`](Data/README.md) |
 
 ## Struktur
@@ -47,8 +48,8 @@ Masterprojekt_G1_CubeStack/
 │   ├── Custom_Scripts_Env_Anpassungen/    # Übersichts-Kopien: Env-Configs, Closed-Loop-Eval
 │   └── Teleop/                            # Übersichts-Kopien: Aufnahme-/Replay-/Konvertierungs-Skripte
 ├── Training/
-│   ├── UnifoLM-VLA/                       # UnifoLM-VLA Framework (Training, Eval, Isaac-Sim-Bridge)
-│   └── Kisski_Submit/                     # Platzhalter -- KISSKI-Submit-Skripte folgen noch
+│   ├── UnifoLM-VLA/                       # UnifoLM-VLA Framework (Training, Eval, Isaac-Sim-Bridge) + Dockerfile
+│   └── Kisski_Submit/                     # SLURM/Apptainer-Deployment fürs volle Finetuning auf KISSKI
 ├── Dokumentation/
 │   ├── Simulation/                        # Doku zur Simulation-Seite
 │   └── Training/                          # Doku zur Training-/Eval-Seite
