@@ -7,36 +7,38 @@ Deployt dieses Repo per Apptainer/SIF-Container auf der KISSKI-HPC und startet d
 - Große Dateien (Image-Tarball, Datensatz, Checkpoints) laufen über den **Transfer-Node** (`transfer.hpc.gwdg.de`), nicht per `scp`/`rsync` direkt auf den Login-Node.
 - Große Daten gehören auf **`/scratch/$USER`**, nicht in `$HOME` oder ein Projektverzeichnis. Die SIF-Datei selbst (klein) liegt in `$HOME/images/`.
 
-**Status:** Docker-Image baut erfolgreich und wurde lokal verifiziert -- alle Kernpakete importieren fehlerfrei (`torch`, `flash_attn`, `unifolm_vla`, `lerobot`, `tensorflow`, `deepspeed`), inkl. echtem GPU-Zugriff (`docker run --gpus all` erkennt die lokale GPU korrekt über CUDA). **Noch nicht auf echter KISSKI-Hardware getestet** -- SLURM-Direktiven, die `srun`-gestützte Apptainer-Konvertierung und der eigentliche Trainingslauf sind ungetestet. Mechanik (SLURM-Direktiven, Token-Dateien, Apptainer-Bind-Muster) ist aus dem bereits produktiv laufenden GR00T-Workflow eines Kollegen übernommen, aber auf unser eigenes Image + UnifoLM-VLA-Trainingskommando umgeschrieben -- vor dem ersten echten Lauf unbedingt mit kleinen `MAX_STEPS`-Werten verifizieren.
+**Status:** Docker-Image baut erfolgreich und wurde lokal verifiziert -- alle Kernpakete importieren fehlerfrei (`torch`, `flash_attn`, `unifolm_vla`, `lerobot`, `tensorflow`, `deepspeed`), inkl. echtem GPU-Zugriff (`docker run --gpus all` erkennt die lokale GPU korrekt über CUDA). Nach Docker Hub gepusht (`fichtlff/unifolm-vla-kisski:latest`) und ein `apptainer pull` davon auf KISSKI bereits angestoßen (per `srun`, noch nicht durchgelaufen bestätigt). Der eigentliche Trainingslauf ist noch nicht getestet. Mechanik (SLURM-Direktiven, Token-Dateien, Apptainer-Bind-Muster) ist aus dem bereits produktiv laufenden GR00T-Workflow eines Kollegen übernommen, aber auf unser eigenes Image + UnifoLM-VLA-Trainingskommando umgeschrieben -- vor dem ersten echten Lauf unbedingt mit kleinen `MAX_STEPS`-Werten verifizieren.
 
 ## Ablauf
 
 ```
-[diese Maschine]                    [Transfer-Node]        [Login-Node]           [Compute-Node]
-                                     transfer.hpc.gwdg.de   glogin10               (KEIN Internet)
-1. build_and_transfer_sif.sh  ──scp──►  /scratch/$USER/images/*.tar
-                                                              │
-                                                              └─ srun ──►  apptainer build → $HOME/images/*.sif
-2. prepare_and_stage_data.sh  ──rsync─► /scratch/$USER/data/ (Basis-VLM + RLDS-Datensatz)
+[diese Maschine]              [Docker Hub]                [Login-Node]           [Compute-Node]
+                                                            glogin10               (KEIN Internet)
+1. build_and_transfer_sif.sh ──push──► <namespace>/...
+                                            │
+                                            └── ssh ──►                          srun ──► apptainer pull
+                                                                                            → $HOME/images/*.sif
+2. prepare_and_stage_data.sh  ──rsync (über Transfer-Node)─► /scratch/$USER/data/ (Basis-VLM + RLDS-Datensatz)
 3. git clone (manuell, auf Login-Node -- git braucht Internet, das hat nur der Login-Node)
                                                               4. sbatch kisski_submit.sh ──►  apptainer run
                                                                                                 (SKIP_DOWNLOAD=1,
                                                                                                  nur Konvertierung
                                                                                                  + Training)
-5. fetch_checkpoints.sh       ◄──rsync── /scratch/$USER/data/outputs_unifolm_vla/
+5. fetch_checkpoints.sh       ◄──rsync (über Transfer-Node)── /scratch/$USER/data/outputs_unifolm_vla/
    (+ optional Push nach HF)
 ```
 
-## 1. Image bauen + als SIF transferieren
+## 1. Image bauen + über Docker Hub auf KISSKI ziehen
 
-Kein Docker Hub nötig -- Image wird lokal gebaut, als Tarball exportiert, über den Transfer-Node hochgeladen und per `srun` auf einem Compute-Node (nicht dem Login-Node!) zu einem SIF konvertiert:
+Kein `scp` eines mehrere GB großen Tarballs nötig -- Image wird lokal gebaut, zu Docker Hub gepusht (braucht vorher `docker login`), und auf KISSKI per `apptainer pull docker://...` direkt gezogen. Das ist exakt das Muster, das im GR00T-Workflow des Kollegen bereits nachweislich funktioniert:
 
 ```bash
+DOCKERHUB_REPO=<dein-dockerhub-username>/unifolm-vla-kisski \
 KISSKI_LOGIN_HOST=<username>@glogin10 \
 ./build_and_transfer_sif.sh
 ```
 
-`KISSKI_TRANSFER_HOST` (Default: `<username>@transfer.hpc.gwdg.de`), `KISSKI_SCRATCH_DIR` (Default: `/scratch/<username>`) und `KISSKI_PARTITION` (Default: `kisski`) sind bei Bedarf überschreibbar.
+`IMAGE_TAG` (Default: `latest`) und `KISSKI_PARTITION` (Default: `kisski`) sind bei Bedarf überschreibbar. Ist das Image schon gebaut/gepusht, spart `SKIP_BUILD=1`/`SKIP_PUSH=1` die entsprechenden Schritte.
 
 ## 2. Daten vorbereiten + hochladen
 
@@ -103,7 +105,7 @@ HF_UPLOAD_REPO=<namespace>/unifolm-vla-g1-dex3-full ./fetch_checkpoints.sh
 | Datei | Zweck |
 |---|---|
 | [`../UnifoLM-VLA/Dockerfile`](../UnifoLM-VLA/Dockerfile) | Baut das Image (Python-Env + UnifoLM-VLA installiert). Skripte werden NICHT eingebacken, sondern zur Laufzeit gemountet. |
-| [`build_and_transfer_sif.sh`](build_and_transfer_sif.sh) | Lokal bauen → Tarball → Transfer-Node → `srun` + `apptainer build` auf einem Compute-Node. |
+| [`build_and_transfer_sif.sh`](build_and_transfer_sif.sh) | Lokal bauen → Docker-Hub-Push → `srun` + `apptainer pull` auf einem Compute-Node. |
 | [`prepare_and_stage_data.sh`](prepare_and_stage_data.sh) | Lokal Daten laden + konvertieren → rsync (über Transfer-Node) nach `/scratch/$USER/data`. |
 | [`entrypoint.sh`](entrypoint.sh) | Container-Entrypoint (Download → Konvertierung → Training), läuft sowohl lokal (Docker) als auch im Cluster-Job (Apptainer). |
 | [`kisski_submit.sh`](kisski_submit.sh) | SLURM-Batch-Skript (`sbatch kisski_submit.sh`), startet den Container mit den richtigen Binds/Env-Variablen. `SKIP_DOWNLOAD=1` per Default. |
@@ -121,5 +123,5 @@ HF_UPLOAD_REPO=<namespace>/unifolm-vla-g1-dex3-full ./fetch_checkpoints.sh
 - `UnifoLM-VLM-Base`-Downloadpfad (`unitreerobotics/UnifoLM-VLM-Base`) ist nicht gegen einen echten HF-Repo-Namen verifiziert -- ggf. anpassen.
 - Ressourcen-Direktiven (`-G A100:4`, `--mem=384G`, `-t 48:00:00`) sind vom GR00T-Lauf des Kollegen übernommen und müssen ggf. für UnifoLM-VLA neu kalibriert werden (anderes Modell, andere Speicherprofile).
 - `KISSKI_PARTITION`/`srun`-Ressourcen für den SIF-Build (`-t 00:30:00 -c 4 --mem=16G`) sind eine Schätzung, nicht gegen echte KISSKI-Limits verifiziert.
-- `apptainer build ... docker-archive://...` (Konvertierung des `docker save`-Tarballs zu SIF) ist ungetestet -- kein Apptainer auf dieser Maschine verfügbar.
+- `apptainer pull docker://...` auf KISSKI wurde angestoßen, aber noch nicht als abgeschlossen bestätigt -- kein Apptainer auf dieser Maschine verfügbar, daher lokal nicht nachstellbar.
 - Der eigentliche Trainingslauf (`entrypoint.sh` Stufe 3, `accelerate launch ... train_unifolm_vla.py`) wurde in diesem Image noch nicht ausgeführt, nur die Imports verifiziert.

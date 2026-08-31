@@ -1,66 +1,68 @@
 #!/usr/bin/env bash
 # build_and_transfer_sif.sh -- Baut das UnifoLM-VLA-Trainingsimage LOKAL (auf
-# dieser Maschine, mit Docker) und konvertiert/transferiert es DIREKT als SIF
-# auf KISSKI -- ohne Umweg über eine Docker-Registry (kein Docker Hub o.ä.
-# nötig, kein öffentliches Image).
+# dieser Maschine, mit Docker), pusht es zu Docker Hub, und zieht es auf KISSKI
+# direkt von dort als SIF -- kein scp/docker-archive-Tarball noetig.
+#
+# Warum Docker Hub statt scp+docker-archive: die Session, in der dieses Repo
+# entstand, hatte keinen Netzwerkpfad zu KISSKI (glogin10 nicht aufloesbar --
+# vermutlich GWDG-VPN-only) und daher kein Geraet zur Hand, das gleichzeitig
+# Docker UND einen Pfad zu KISSKI hat. Docker-Hub-Push lief von hier aus
+# problemlos; ein `apptainer pull docker://...` direkt auf KISSKI ist ausserdem
+# GENAU das Muster, das im GR00T-Workflow eines Kollegen bereits nachweislich
+# funktioniert (siehe dortiges kisski_submit.sh).
 #
 # WICHTIGE KISSKI-SPEZIFIKA (vom GWDG-Support/Kollegen bestätigt):
-#  - `apptainer build`/`pull` darf NICHT auf dem Login-Node laufen (Ressourcen-
-#    Policy) -- wird hier per `srun` auf einem Compute-Node ausgefuehrt.
-#  - Grosse Dateien (der Image-Tarball) gehoeren auf den Transfer-Node
-#    (transfer.hpc.gwdg.de), nicht per scp direkt auf den Login-Node.
-#  - Die fertige .sif-Datei ist klein genug fuer $HOME/images/ (wie im
-#    GWDG-Beispiel).
+#  - `apptainer pull` darf NICHT auf dem Login-Node laufen (Ressourcen-Policy)
+#    -- wird hier per `srun` auf einem Compute-Node ausgefuehrt.
+#  - Die fertige .sif-Datei ist klein genug fuer $HOME/images/.
 #
 # Usage:
+#   DOCKERHUB_REPO=<dein-dockerhub-username>/unifolm-vla-kisski \
 #   KISSKI_LOGIN_HOST=<username>@glogin10 \
 #   ./build_and_transfer_sif.sh
 #
-#   # Optional, falls abweichend von den Defaults:
-#   KISSKI_TRANSFER_HOST=<username>@transfer.hpc.gwdg.de
-#   KISSKI_SCRATCH_DIR=/scratch/<username>
-#   KISSKI_PARTITION=kisski   (oder kisski-h100)
+#   # Image schon gebaut + gepusht? Baue nur den Docker-Build-Schritt aus:
+#   SKIP_BUILD=1 SKIP_PUSH=1 DOCKERHUB_REPO=... KISSKI_LOGIN_HOST=... ./build_and_transfer_sif.sh
 #
-# NOCH NICHT gegen einen echten KISSKI-Login-Node getestet.
+# NOCH NICHT gegen einen echten KISSKI-Login-Node getestet (der Docker-Hub-Push
+# selbst wurde bereits erfolgreich durchgefuehrt).
 
 set -euo pipefail
 
+DOCKERHUB_REPO="${DOCKERHUB_REPO:?Setze DOCKERHUB_REPO=<dein-dockerhub-username>/unifolm-vla-kisski}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
 KISSKI_LOGIN_HOST="${KISSKI_LOGIN_HOST:?Setze KISSKI_LOGIN_HOST=<username>@glogin10}"
-KISSKI_USER="${KISSKI_LOGIN_HOST%@*}"
-KISSKI_HOSTNAME_ONLY="${KISSKI_LOGIN_HOST#*@}"
-_GWDG_SUFFIX=".hpc.gwdg.de"
-KISSKI_TRANSFER_HOST="${KISSKI_TRANSFER_HOST:-${KISSKI_USER}@transfer${_GWDG_SUFFIX}}"
-KISSKI_SCRATCH_DIR="${KISSKI_SCRATCH_DIR:-/scratch/${KISSKI_USER}}"
 KISSKI_PARTITION="${KISSKI_PARTITION:-kisski}"
-IMAGE_NAME="${IMAGE_NAME:-unifolm-vla-kisski:latest}"
-TAR_PATH="${TAR_PATH:-/tmp/unifolm-vla-kisski.tar}"
+SKIP_BUILD="${SKIP_BUILD:-0}"
+SKIP_PUSH="${SKIP_PUSH:-0}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKERFILE_DIR="${SCRIPT_DIR}/../UnifoLM-VLA"
+FULL_IMAGE="${DOCKERHUB_REPO}:${IMAGE_TAG}"
 
-echo "==> 1/5 Baue Docker-Image lokal ($IMAGE_NAME) ..."
-docker build -t "$IMAGE_NAME" -f "${DOCKERFILE_DIR}/Dockerfile" "$DOCKERFILE_DIR"
+if [[ "$SKIP_BUILD" != "1" ]]; then
+    echo "==> 1/3 Baue Docker-Image lokal ($FULL_IMAGE) ..."
+    docker build -t "$FULL_IMAGE" -f "${DOCKERFILE_DIR}/Dockerfile" "$DOCKERFILE_DIR"
+else
+    echo "==> 1/3 SKIP_BUILD=1, übersprungen."
+fi
 
-echo "==> 2/5 Exportiere Image als Tarball ($TAR_PATH) ..."
-docker save -o "$TAR_PATH" "$IMAGE_NAME"
-du -h "$TAR_PATH"
+if [[ "$SKIP_PUSH" != "1" ]]; then
+    echo "==> 2/3 Push nach Docker Hub ($FULL_IMAGE) -- 'docker login' muss vorher erfolgt sein ..."
+    docker push "$FULL_IMAGE"
+else
+    echo "==> 2/3 SKIP_PUSH=1, übersprungen."
+fi
 
-echo "==> 3/5 Transferiere Tarball zum Transfer-Node ($KISSKI_TRANSFER_HOST, nicht Login-Node) ..."
-ssh "$KISSKI_TRANSFER_HOST" "mkdir -p ${KISSKI_SCRATCH_DIR}/images"
-scp "$TAR_PATH" "${KISSKI_TRANSFER_HOST}:${KISSKI_SCRATCH_DIR}/images/unifolm-vla-kisski.tar"
-
-echo "==> 4/5 Baue SIF auf einem COMPUTE-Node (per srun, nicht auf dem Login-Node) ..."
+echo "==> 3/3 Ziehe Image als SIF auf einem COMPUTE-Node (per srun, nicht auf dem Login-Node) ..."
 ssh "$KISSKI_LOGIN_HOST" bash -s << EOF
 set -euo pipefail
 mkdir -p \$HOME/images
 srun -p "${KISSKI_PARTITION}" -t 00:30:00 -c 4 --mem=16G bash -c '
     module load apptainer
-    apptainer build \$HOME/images/unifolm-vla-kisski.sif \
-        docker-archive://${KISSKI_SCRATCH_DIR}/images/unifolm-vla-kisski.tar
+    apptainer pull \$HOME/images/unifolm-vla-kisski.sif docker://${FULL_IMAGE}
 '
 echo "SIF erstellt: \$HOME/images/unifolm-vla-kisski.sif"
 EOF
 
-echo "==> 5/5 Aufräumen: Tarball auf Scratch + lokal loeschen ..."
-ssh "$KISSKI_TRANSFER_HOST" "rm -f ${KISSKI_SCRATCH_DIR}/images/unifolm-vla-kisski.tar"
-echo "    Lokal noch manuell aufräumen: rm $TAR_PATH"
+echo "==> Fertig."
