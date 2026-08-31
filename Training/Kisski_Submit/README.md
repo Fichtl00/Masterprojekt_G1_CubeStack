@@ -2,7 +2,7 @@
 
 Deployt dieses Repo per Apptainer/SIF-Container auf der KISSKI-HPC und startet das UnifoLM-VLA-Training automatisiert. **Compute-Nodes haben kein Internet** (siehe [`../../Dokumentation/Training/kisski_hpc_ausweichen.md`](../../Dokumentation/Training/kisski_hpc_ausweichen.md)) -- daher passiert alles, was Netzwerk braucht (Image bauen, Daten laden, Checkpoints abholen), **außerhalb** des Compute-Jobs: auf dieser Maschine bzw. dem KISSKI-Login-Node.
 
-**Status: noch nicht auf echter KISSKI-Hardware getestet.** Mechanik (SLURM-Direktiven, Token-Dateien, Apptainer-Bind-Muster) ist aus dem bereits produktiv laufenden GR00T-Workflow eines Kollegen übernommen, aber auf unser eigenes Image + UnifoLM-VLA-Trainingskommando umgeschrieben -- vor dem ersten echten Lauf unbedingt mit kleinen `MAX_STEPS`-Werten verifizieren.
+**Status:** Docker-Image baut erfolgreich und wurde lokal verifiziert -- alle Kernpakete importieren fehlerfrei (`torch`, `flash_attn`, `unifolm_vla`, `lerobot`, `tensorflow`, `deepspeed`), inkl. echtem GPU-Zugriff (`docker run --gpus all` erkennt die lokale GPU korrekt über CUDA). **Noch nicht auf echter KISSKI-Hardware getestet** -- SLURM-Direktiven, Apptainer-Konvertierung (`docker-archive` → SIF) und der eigentliche Trainingslauf sind ungetestet. Mechanik (SLURM-Direktiven, Token-Dateien, Apptainer-Bind-Muster) ist aus dem bereits produktiv laufenden GR00T-Workflow eines Kollegen übernommen, aber auf unser eigenes Image + UnifoLM-VLA-Trainingskommando umgeschrieben -- vor dem ersten echten Lauf unbedingt mit kleinen `MAX_STEPS`-Werten verifizieren.
 
 ## Ablauf
 
@@ -98,9 +98,17 @@ HF_UPLOAD_REPO=<namespace>/unifolm-vla-g1-dex3-full ./fetch_checkpoints.sh
 | [`kisski_submit.sh`](kisski_submit.sh) | SLURM-Batch-Skript (`sbatch kisski_submit.sh`), startet den Container mit den richtigen Binds/Env-Variablen. `SKIP_DOWNLOAD=1` per Default. |
 | [`fetch_checkpoints.sh`](fetch_checkpoints.sh) | Checkpoints per rsync zurückholen, optional Push nach Hugging Face. |
 
+## Bereits verifiziert
+
+- `docker build` läuft vollständig durch (Dockerfile + `requirements-frozen.txt`), ca. 25-30 Minuten (fast ausschließlich `flash_attn`-Kompilierung).
+- `torch`, `flash_attn`, `unifolm_vla`, `lerobot`, `tensorflow`, `deepspeed` importieren fehlerfrei im gebauten Image.
+- `docker run --gpus all` erkennt die GPU korrekt (`torch.cuda.is_available() == True`, `torch.cuda.get_device_name(0)` liefert die echte Karte).
+
 ## Offene Punkte / bekannte Unsicherheiten
 
 - `entrypoint.sh` patched die Konstante `HDF5_DATA_DIR` in `rlds_dataset_g1_dex3.py` per `sed` auf den Container-Pfad (die Datei liest den Pfad nicht aus einer Env-Variable) -- funktional plausibel, aber ungetestet.
 - `UnifoLM-VLM-Base`-Downloadpfad (`unitreerobotics/UnifoLM-VLM-Base`) ist nicht gegen einen echten HF-Repo-Namen verifiziert -- ggf. anpassen.
 - Ressourcen-Direktiven (`-G A100:4`, `--mem=384G`, `-t 48:00:00`) sind vom GR00T-Lauf des Kollegen übernommen und müssen ggf. für UnifoLM-VLA neu kalibriert werden (anderes Modell, andere Speicherprofile).
 - `KISSKI_HOST`/SSH-Zugang zum Login-Node wird vorausgesetzt, aber hier nicht eingerichtet -- eigener SSH-Key/Config nötig.
+- `apptainer build ... docker-archive://...` (Konvertierung des `docker save`-Tarballs zu SIF) ist ungetestet -- kein Apptainer auf dieser Maschine verfügbar.
+- Der eigentliche Trainingslauf (`entrypoint.sh` Stufe 3, `accelerate launch ... train_unifolm_vla.py`) wurde in diesem Image noch nicht ausgeführt, nur die Imports verifiziert.
