@@ -18,15 +18,14 @@
 # Lauf mit kleinen MAX_STEPS/SKIP_*-Werten verifizieren (siehe README.md in
 # diesem Ordner).
 #
-# Voraussetzungen (einmalig):
-#   1. Image bauen + pushen (siehe README.md in diesem Ordner).
-#   2. Auf dem Cluster (Login-Node) das SIF-Image erzeugen:
-#        module load apptainer
-#        mkdir -p $HOME/images
-#        apptainer pull $HOME/images/unifolm-vla-kisski.sif \
-#            docker://<dein-dockerhub-namespace>/unifolm-vla-kisski:latest
-#   3. Dieses Repo (oder mind. Training/Kisski_Submit + Training/UnifoLM-VLA)
-#      auf den Cluster-Projektspeicher klonen (Compute-Nodes haben kein Internet):
+# Voraussetzungen (einmalig) -- Details + genaue Befehle: README.md in diesem Ordner.
+#   1. Image LOKAL bauen (nicht auf KISSKI -- Compute-Nodes haben kein Internet,
+#      der Login-Node keinen Docker-Daemon) und als SIF auf den Cluster
+#      transferieren: build_and_transfer_sif.sh.
+#   2. Basis-VLM + Datensatz LOKAL herunterladen/konvertieren (Internet noetig)
+#      und auf den Cluster-Projektspeicher hochladen: prepare_and_stage_data.sh.
+#   3. Dieses Repo auf den Cluster-Projektspeicher klonen (git braucht Internet --
+#      auf dem Login-Node ausfuehren, NICHT im Compute-Job):
 #        git clone --depth 1 https://github.com/Fichtl00/Masterprojekt_G1_CubeStack.git \
 #            /mnt/vast-kisski/projects/<projekt>/repo
 #   4. Tokens EINMALIG in Dateien hinterlegen (mode 600) -- KISSKI setzt
@@ -34,7 +33,11 @@
 #      daher werden Tokens robust aus Dateien statt aus der Env gelesen:
 #        printf 'hf_DEIN_TOKEN\n'  > ~/.hf_token  && chmod 600 ~/.hf_token
 #        printf 'DEIN_WANDB_KEY\n' > ~/.wandb_key && chmod 600 ~/.wandb_key
+#      (Wird hier nur noch fuer optionales W&B-Logging + im Optional-Fall
+#      SKIP_DOWNLOAD=0 gebraucht -- der Compute-Job selbst laedt per Default nichts
+#      herunter, siehe Punkt 2.)
 #      Danach genuegt zum Einreichen: sbatch kisski_submit.sh
+#   5. Nach dem Lauf: Checkpoints vom Cluster zurueckholen: fetch_checkpoints.sh.
 #
 # Ueberschreibbare Variablen (als Inline-Prefix vor sbatch, MIT --export=ALL):
 #   KISSKI_PROJECT_DIR, REPO_DIR, DATA_DIR, SIF_IMAGE
@@ -99,7 +102,12 @@ DATA_MIX="${DATA_MIX:-g1_dex3_blockstacking}"
 RUN_ID="${RUN_ID:-g1_dex3_blockstacking_full}"
 WANDB_PROJECT="${WANDB_PROJECT:-unifolm_vla_g1_dex3}"
 
-SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
+# SKIP_DOWNLOAD=1 per Default: Compute-Nodes haben KEIN Internet (siehe
+# Dokumentation/Training/kisski_hpc_ausweichen.md) -- Basis-VLM + Datensatz muessen
+# VORHER auf DATA_DIR liegen (siehe prepare_and_stage_data.sh in diesem Ordner).
+# SKIP_CONVERT bleibt an (0): reine lokale HDF5->RLDS-Konvertierung braucht kein
+# Netz und darf im Job laufen.
+SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-1}"
 SKIP_CONVERT="${SKIP_CONVERT:-0}"
 SKIP_TRAIN="${SKIP_TRAIN:-0}"
 
