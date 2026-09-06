@@ -20,12 +20,22 @@ RLDS_ROOT="${DATA_ROOT}/g1_dex3_blockstacking_rlds"
 BASE_VLM="${DATA_ROOT}/UnifoLM-VLM-Base"
 OUTPUT_ROOT="${DATA_ROOT}/outputs_unifolm_vla"
 
+# unitreerobotics/G1_Dex3_BlockStacking_Dataset's `main` branch ist LeRobot v3.0
+# (Pfadschema mit `chunk_index`), die hier verwendete LeRobotDataset-Klasse
+# erwartet aber v2.1 (`episode_chunk`/`episode_index`) -- ohne Pin bricht
+# convert_lerobot_to_hdf5_g1_dex3.py mit `KeyError: 'chunk_index'` ab. Fix
+# (schon einmal in diesem Projekt geloest, siehe
+# Dokumentation/Training/unifolm_vla_scratch_finetuning_g1_dex3_blockstacking.md):
+# auf die Commit-SHA des `v2.1`-Tags pinnen (nicht den String "v2.1" selbst --
+# das haelt den Hub-Versions-Check bei jeder Instanziierung aktiv).
+HF_DATASET_REVISION="${HF_DATASET_REVISION:-88d465cc0d73659d0899c74eef053a2f4c2a5cff}"
+
 # ── Schritt 1: Basis-VLM + Datensatz von Hugging Face laden ──────────────────
 if [[ "${SKIP_DOWNLOAD:-0}" != "1" ]]; then
     echo "==> Schritt 1/3 -- Download Basis-VLM + Datensatz"
     [[ -d "$BASE_VLM" ]] || hf download "${BASE_VLM_REPO:-unitreerobotics/UnifoLM-VLM-Base}" --local-dir "$BASE_VLM"
     hf download "${HF_DATASET_REPO:-unitreerobotics/G1_Dex3_BlockStacking_Dataset}" \
-        --repo-type dataset --local-dir "$LEROBOT_SOURCE_DIR"
+        --repo-type dataset --revision "$HF_DATASET_REVISION" --local-dir "$LEROBOT_SOURCE_DIR"
 else
     echo "==> Schritt 1/3 -- SKIP_DOWNLOAD=1, übersprungen"
 fi
@@ -36,6 +46,7 @@ if [[ "${SKIP_CONVERT:-0}" != "1" ]]; then
     python prepare_data/convert_lerobot_to_hdf5_g1_dex3.py \
         --repo-id "${HF_DATASET_REPO:-unitreerobotics/G1_Dex3_BlockStacking_Dataset}" \
         --root "$LEROBOT_SOURCE_DIR" \
+        --revision "$HF_DATASET_REVISION" \
         --output_dir "$HDF5_DIR" \
         --num-workers "${CONVERT_WORKERS:-8}"
 
