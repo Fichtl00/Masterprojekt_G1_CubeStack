@@ -30,6 +30,13 @@ OUTPUT_ROOT="${DATA_ROOT}/outputs_unifolm_vla"
 # das haelt den Hub-Versions-Check bei jeder Instanziierung aktiv).
 HF_DATASET_REVISION="${HF_DATASET_REVISION:-88d465cc0d73659d0899c74eef053a2f4c2a5cff}"
 
+# HF's Xet-Backend feuert PRO DATEI einen eigenen Token-Refresh-API-Call ab --
+# bei einem vielteiligen Datensatz (viele Episoden/Dateien) reisst das parallel
+# schnell die generische Hub-Quote (1000 Requests/5min) und schlaegt mit
+# "429 Too Many Requests" fehl. Xet abschalten faellt zurueck auf normale
+# HTTP/LFS-Downloads ohne dieses Problem.
+export HF_HUB_DISABLE_XET=1
+
 # ── Schritt 1: Basis-VLM + Datensatz von Hugging Face laden ──────────────────
 if [[ "${SKIP_DOWNLOAD:-0}" != "1" ]]; then
     echo "==> Schritt 1/3 -- Download Basis-VLM + Datensatz"
