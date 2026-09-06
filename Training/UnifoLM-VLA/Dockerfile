@@ -32,8 +32,14 @@ ENV CUDA_HOME=/usr/local/cuda
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 WORKDIR /app/unifolm-vla
-COPY . /app/unifolm-vla
 
+# NUR requirements-frozen.txt kopieren (nicht der volle Quellbaum) -- damit
+# Aenderungen an Python-Quelldateien (configs.py, mixtures.py, ...) NICHT die
+# darauffolgenden, teuren Installationslayer (u.a. flash_attn-Kompilierung,
+# ~25 Min) invalidieren. Der volle Quellbaum wird erst kurz vor `pip install -e .`
+# kopiert (siehe unten) -- nur DIESER letzte Schritt wird bei Quelldateien-
+# Aenderungen neu ausgefuehrt.
+#
 # pyproject.toml hat einen echten, ungeloesten Konflikt (tensorflow_graphics ->
 # tensorflow-addons braucht typeguard<3.0, tyro braucht typeguard>=4.0) --
 # `pip install -e .` mit normaler Resolution schlaegt fehl (ResolutionImpossible).
@@ -51,7 +57,11 @@ COPY requirements-frozen.txt /tmp/requirements-frozen.txt
 RUN pip install --no-cache-dir packaging==26.0 ninja==1.13.0 torch==2.5.1
 RUN grep -v '^flash_attn==' /tmp/requirements-frozen.txt > /tmp/requirements-no-flash.txt \
     && pip install --no-cache-dir --no-deps -r /tmp/requirements-no-flash.txt \
-    && pip install --no-cache-dir --no-deps --no-build-isolation flash_attn==2.5.6 \
-    && pip install --no-cache-dir --no-deps -e .
+    && pip install --no-cache-dir --no-deps --no-build-isolation flash_attn==2.5.6
+
+# Erst jetzt der volle Quellbaum -- nur dieser Schritt + die editable-Installation
+# darunter laufen bei reinen Quelldateien-Aenderungen neu.
+COPY . /app/unifolm-vla
+RUN pip install --no-cache-dir --no-deps -e .
 
 ENTRYPOINT ["/scripts/entrypoint.sh"]
