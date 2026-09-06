@@ -51,6 +51,11 @@
 #   FREEZE_BACKBONE (=1 -> wie lokal nur Action-Head, Default 0 = volles Finetuning)
 #   HF_DATASET_REPO, BASE_VLM_REPO, RUN_ID, WANDB_PROJECT
 #   SKIP_DOWNLOAD, SKIP_CONVERT, SKIP_TRAIN
+#   USE_COTRAIN (=1 -> Co-Training echt+synthetisch, siehe kisski_submit_cotrain.sh),
+#   COTRAIN_HF_REPO, COTRAIN_MIX_RATIO (Anteil synthetisch, Default 0.25)
+#
+# SAVE_STEPS-Default garantiert mindestens 5 Zwischen-Checkpoints (MAX_STEPS/5,
+# minimal 1) -- explizites SAVE_STEPS=... hat weiterhin Vorrang.
 
 #SBATCH --job-name=unifolm-vla-finetune
 #SBATCH -p kisski
@@ -109,7 +114,12 @@ GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
 NUM_GPUS="${NUM_GPUS:-4}"
 PER_DEVICE_BATCH_SIZE=$((GLOBAL_BATCH_SIZE / NUM_GPUS))
 LEARNING_RATE="${LEARNING_RATE:-4e-5}"
-SAVE_STEPS="${SAVE_STEPS:-2000}"
+# Mindestens 5 Zwischen-Checkpoints per Default (MAX_STEPS/5, minimal 1) --
+# ein fixer Default wie z.B. 2000 haette bei kleinen Testlaeufen (MAX_STEPS=10)
+# ueberhaupt keinen Checkpoint gespeichert.
+_default_save_steps=$(( MAX_STEPS / 5 ))
+[[ "$_default_save_steps" -lt 1 ]] && _default_save_steps=1
+SAVE_STEPS="${SAVE_STEPS:-$_default_save_steps}"
 
 # FREEZE_BACKBONE=0 (Default): volles Finetuning -- der eigentliche Grund fuer
 # KISSKI. FREEZE_BACKBONE=1 erlaubt trotzdem einen Action-Head-only-Lauf mit
@@ -118,9 +128,22 @@ FREEZE_BACKBONE="${FREEZE_BACKBONE:-0}"
 
 HF_DATASET_REPO="${HF_DATASET_REPO:-unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
 BASE_VLM_REPO="${BASE_VLM_REPO:-unitreerobotics/UnifoLM-VLM-Base}"
-DATA_MIX="${DATA_MIX:-g1_dex3_blockstacking}"
-RUN_ID="${RUN_ID:-g1_dex3_blockstacking_full}"
 WANDB_PROJECT="${WANDB_PROJECT:-unifolm_vla_g1_dex3}"
+
+# Co-Training auf echten + synthetischen (teleoperierten Isaac-Lab-)Daten -- siehe
+# kisski_submit_cotrain.sh fuer den fertigen Launcher. USE_COTRAIN=1 aendert die
+# DATA_MIX/RUN_ID-Defaults; entrypoint.sh laedt/baut dann zusaetzlich COTRAIN_HF_REPO.
+USE_COTRAIN="${USE_COTRAIN:-0}"
+COTRAIN_HF_REPO="${COTRAIN_HF_REPO:-Fichtl00/Cube_Stacking_synth}"
+COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO:-0.25}"
+_default_data_mix="g1_dex3_blockstacking"
+_default_run_id="g1_dex3_blockstacking_full"
+if [[ "$USE_COTRAIN" == "1" ]]; then
+    _default_data_mix="g1_dex3_blockstacking_cotrain"
+    _default_run_id="g1_dex3_blockstacking_cotrain"
+fi
+DATA_MIX="${DATA_MIX:-$_default_data_mix}"
+RUN_ID="${RUN_ID:-$_default_run_id}"
 
 # SKIP_DOWNLOAD=1 per Default: Compute-Nodes haben KEIN Internet (siehe
 # Dokumentation/Training/kisski_hpc_ausweichen.md) -- Basis-VLM + Datensatz muessen
@@ -178,6 +201,7 @@ echo "    FREEZE_BACKBONE:    $FREEZE_BACKBONE  (0 = volles Finetuning, Grund fu
 echo "    HF_DATASET_REPO:    $HF_DATASET_REPO"
 echo "    RUN_ID:             $RUN_ID"
 echo "    SKIP_DOWNLOAD/CONVERT/TRAIN: $SKIP_DOWNLOAD / $SKIP_CONVERT / $SKIP_TRAIN"
+echo "    USE_COTRAIN:        $USE_COTRAIN$([[ "$USE_COTRAIN" == "1" ]] && echo "  ($COTRAIN_HF_REPO, Anteil synthetisch=$COTRAIN_MIX_RATIO)")"
 echo ""
 
 module load apptainer
@@ -200,6 +224,9 @@ APPTAINER_ARGS=(
     --env "DATA_MIX=$DATA_MIX"
     --env "RUN_ID=$RUN_ID"
     --env "WANDB_PROJECT=$WANDB_PROJECT"
+    --env "USE_COTRAIN=$USE_COTRAIN"
+    --env "COTRAIN_HF_REPO=$COTRAIN_HF_REPO"
+    --env "COTRAIN_MIX_RATIO=$COTRAIN_MIX_RATIO"
     --env "SKIP_DOWNLOAD=$SKIP_DOWNLOAD"
     --env "SKIP_CONVERT=$SKIP_CONVERT"
     --env "SKIP_TRAIN=$SKIP_TRAIN"

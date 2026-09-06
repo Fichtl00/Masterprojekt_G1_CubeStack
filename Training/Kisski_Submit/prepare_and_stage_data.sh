@@ -28,6 +28,10 @@
 #   # Optional, falls abweichend von den Defaults:
 #   KISSKI_TRANSFER_HOST=<username>@transfer.hpc.gwdg.de
 #   KISSKI_GROUP_SUBDIR=gruppe2
+#
+#   # Fuer Co-Training (siehe kisski_submit_cotrain.sh) zusaetzlich den
+#   # synthetischen Datensatz mit staged:
+#   USE_COTRAIN=1 KISSKI_LOGIN_HOST=... KISSKI_PROJECT_DIR=... HF_TOKEN=... ./prepare_and_stage_data.sh
 
 set -euo pipefail
 
@@ -51,6 +55,9 @@ docker run --rm \
     -e "HF_TOKEN=${HF_TOKEN}" \
     -e "HF_DATASET_REPO=${HF_DATASET_REPO:-unitreerobotics/G1_Dex3_BlockStacking_Dataset}" \
     -e "BASE_VLM_REPO=${BASE_VLM_REPO:-unitreerobotics/UnifoLM-VLM-Base}" \
+    -e "USE_COTRAIN=${USE_COTRAIN:-0}" \
+    -e "COTRAIN_HF_REPO=${COTRAIN_HF_REPO:-Fichtl00/Cube_Stacking_synth}" \
+    -e "COTRAIN_MIX_RATIO=${COTRAIN_MIX_RATIO:-0.25}" \
     -e "SKIP_DOWNLOAD=0" \
     -e "SKIP_CONVERT=0" \
     -e "SKIP_TRAIN=1" \

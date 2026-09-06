@@ -958,4 +958,5 @@ OXE_STANDARDIZATION_TRANSFORMS = {
     "g1_dual_clean_table": unitree_g1_ee_6d_dataset_transform,
     "g1_fold_towel": unitree_g1_ee_6d_dataset_transform,
     "g1_dex3_blockstacking": unitree_g1_joint_dataset_transform,
+    "g1_dex3_cubestacking_synth": unitree_g1_joint_dataset_transform,
 }

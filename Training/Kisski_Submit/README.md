@@ -118,6 +118,37 @@ RUN_ID=g1_dex3_blockstacking_full \
 HF_UPLOAD_REPO=<namespace>/unifolm-vla-g1-dex3-full ./fetch_checkpoints.sh
 ```
 
+## Co-Training mit synthetischen Daten
+
+Testet den Einfluss von simuliertem Co-Training: mischt die echten Trainingsdaten mit den per CloudXR/OpenXR teleoperierten Isaac-Lab-Aufnahmen ([`Fichtl00/Cube_Stacking_synth`](https://huggingface.co/datasets/Fichtl00/Cube_Stacking_synth), siehe [`Dokumentation/Simulation/1_cube_stack_teleop_env.md`](../../Dokumentation/Simulation/1_cube_stack_teleop_env.md)). Registriert als eigener RLDS-Datensatz (`g1_dex3_cubestacking_synth`) und über eine gewichtete OXE-Mixture (`g1_dex3_blockstacking_cotrain`) mit dem echten Datensatz kombiniert -- Standardmischung 75% echt / 25% synthetisch, per `COTRAIN_MIX_RATIO` (Anteil synthetisch) überschreibbar.
+
+**Achtung:** Die Co-Training-Registrierung (`configs.py`/`transforms.py`/`mixtures.py`, neuer RLDS-Builder) ist Teil des Docker-Images, nicht der zur Laufzeit gemounteten Skripte -- nach Änderungen daran ist ein **Image-Rebuild + neuer Push + neuer `apptainer pull`** nötig (`build_and_transfer_sif.sh`).
+
+```bash
+# 1. Synthetischen Datensatz zusätzlich staged (analog zu Schritt 2 oben):
+USE_COTRAIN=1 KISSKI_LOGIN_HOST=<username>@glogin-gpu.hpc.gwdg.de \
+KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> \
+HF_TOKEN=hf_... \
+./prepare_and_stage_data.sh
+
+# 2. Co-Training-Job einreichen:
+REPO_DIR=... KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> \
+./kisski_submit_cotrain.sh
+
+# Anteil synthetisch anpassen (Default 0.25):
+COTRAIN_MIX_RATIO=0.5 REPO_DIR=... KISSKI_PROJECT_DIR=... ./kisski_submit_cotrain.sh
+```
+
+Checkpoints landen unter `RUN_ID=g1_dex3_blockstacking_cotrain` (Default bei `USE_COTRAIN=1`) -- Rückholen wie in Schritt 5, nur mit diesem `RUN_ID`:
+
+```bash
+KISSKI_LOGIN_HOST=... KISSKI_PROJECT_DIR=... RUN_ID=g1_dex3_blockstacking_cotrain ./fetch_checkpoints.sh
+```
+
+## Zwischen-Checkpoints
+
+`SAVE_STEPS` hat jetzt einen von `MAX_STEPS` abgeleiteten Default (`MAX_STEPS/5`, minimal 1) statt eines festen Werts -- garantiert mindestens **5 Zwischen-Checkpoints**, unabhängig davon wie `MAX_STEPS` gesetzt ist (ein fixer Default wie z.B. `2000` hätte bei einem `MAX_STEPS=10`-Testlauf gar keinen Checkpoint gespeichert). Explizites `SAVE_STEPS=...` hat weiterhin Vorrang.
+
 ## Dateien
 
 | Datei | Zweck |
@@ -127,6 +158,7 @@ HF_UPLOAD_REPO=<namespace>/unifolm-vla-g1-dex3-full ./fetch_checkpoints.sh
 | [`prepare_and_stage_data.sh`](prepare_and_stage_data.sh) | Lokal Daten laden + konvertieren → rsync (über Transfer-Node) auf VAST-Projekt-Storage. |
 | [`entrypoint.sh`](entrypoint.sh) | Container-Entrypoint (Download → Konvertierung → Training), läuft sowohl lokal (Docker) als auch im Cluster-Job (Apptainer). |
 | [`kisski_submit.sh`](kisski_submit.sh) | SLURM-Batch-Skript (`sbatch kisski_submit.sh`), startet den Container mit den richtigen Binds/Env-Variablen. `SKIP_DOWNLOAD=1` per Default. |
+| [`kisski_submit_cotrain.sh`](kisski_submit_cotrain.sh) | Dünner Wrapper um `kisski_submit.sh`: setzt `USE_COTRAIN=1` + Defaults für das Co-Training mit synthetischen Daten. |
 | [`fetch_checkpoints.sh`](fetch_checkpoints.sh) | Checkpoints per rsync (über Transfer-Node) zurückholen, optional Push nach Hugging Face. |
 
 ## Bereits verifiziert

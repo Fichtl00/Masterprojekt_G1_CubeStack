@@ -37,12 +37,28 @@ HF_DATASET_REVISION="${HF_DATASET_REVISION:-88d465cc0d73659d0899c74eef053a2f4c2a
 # HTTP/LFS-Downloads ohne dieses Problem.
 export HF_HUB_DISABLE_XET=1
 
+# Co-Training auf echten + synthetischen (per CloudXR/OpenXR teleoperierten Isaac-Lab-)
+# Bildern -- siehe Dokumentation/Training/kisski_hpc_ausweichen.md. USE_COTRAIN=1 laedt
+# zusaetzlich COTRAIN_HF_REPO, baut es als eigenen RLDS-Datensatz und trainiert auf der
+# gemischten OXE-Mixture (g1_dex3_blockstacking_cotrain) statt nur auf den echten Daten.
+USE_COTRAIN="${USE_COTRAIN:-0}"
+COTRAIN_HF_REPO="${COTRAIN_HF_REPO:-Fichtl00/Cube_Stacking_synth}"
+COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO:-0.25}"   # Anteil synthetisch, Rest = 1-COTRAIN_MIX_RATIO
+COTRAIN_LEROBOT_DIR="${DATA_ROOT}/lerobot_source_synth"
+COTRAIN_HDF5_DIR="${DATA_ROOT}/hdf5_out_synth"
+
 # ── Schritt 1: Basis-VLM + Datensatz von Hugging Face laden ──────────────────
 if [[ "${SKIP_DOWNLOAD:-0}" != "1" ]]; then
     echo "==> Schritt 1/3 -- Download Basis-VLM + Datensatz"
     [[ -d "$BASE_VLM" ]] || hf download "${BASE_VLM_REPO:-unitreerobotics/UnifoLM-VLM-Base}" --local-dir "$BASE_VLM"
     hf download "${HF_DATASET_REPO:-unitreerobotics/G1_Dex3_BlockStacking_Dataset}" \
         --repo-type dataset --revision "$HF_DATASET_REVISION" --local-dir "$LEROBOT_SOURCE_DIR"
+
+    if [[ "$USE_COTRAIN" == "1" ]]; then
+        echo "    Co-Training: lade zusaetzlich $COTRAIN_HF_REPO"
+        # Eigener Datensatz, keine Revision-Pin noetig (nur ein Branch, von uns selbst erzeugt).
+        hf download "$COTRAIN_HF_REPO" --repo-type dataset --local-dir "$COTRAIN_LEROBOT_DIR"
+    fi
 else
     echo "==> Schritt 1/3 -- SKIP_DOWNLOAD=1, übersprungen"
 fi
@@ -65,6 +81,26 @@ if [[ "${SKIP_CONVERT:-0}" != "1" ]]; then
 
     echo "==> Schritt 2/3 -- Baue RLDS-Datensatz (tfds build)"
     (cd prepare_data/hdf5_to_rlds/rlds_dataset_g1_dex3 && tfds build --data_dir "$RLDS_ROOT")
+
+    if [[ "$USE_COTRAIN" == "1" ]]; then
+        echo "    Co-Training: konvertiere + baue $COTRAIN_HF_REPO als eigenen RLDS-Datensatz"
+        python prepare_data/convert_lerobot_to_hdf5_g1_dex3.py \
+            --repo-id "$COTRAIN_HF_REPO" \
+            --root "$COTRAIN_LEROBOT_DIR" \
+            --output_dir "$COTRAIN_HDF5_DIR" \
+            --num-workers "${CONVERT_WORKERS:-8}"
+
+        SYNTH_BUILDER_FILE="prepare_data/hdf5_to_rlds/rlds_dataset_g1_dex3_synth/rlds_dataset_g1_dex3_synth.py"
+        sed -i "s#^HDF5_DATA_DIR = .*#HDF5_DATA_DIR = \"${COTRAIN_HDF5_DIR}\"#" "$SYNTH_BUILDER_FILE"
+        (cd prepare_data/hdf5_to_rlds/rlds_dataset_g1_dex3_synth && tfds build --data_dir "$RLDS_ROOT")
+
+        # Mischungsverhaeltnis in der OXE-Mixture patchen (Marker-Kommentare in mixtures.py).
+        MIXTURES_FILE="src/unifolm_vla/rlds_dataloader/datasets/rlds/oxe/mixtures.py"
+        REAL_WEIGHT=$(python3 -c "print(1 - ${COTRAIN_MIX_RATIO})")
+        sed -i "s|(\"g1_dex3_blockstacking\", [0-9.]*),\( *# COTRAIN_REAL_WEIGHT\)|(\"g1_dex3_blockstacking\", ${REAL_WEIGHT}),\1|" "$MIXTURES_FILE"
+        sed -i "s|(\"g1_dex3_cubestacking_synth\", [0-9.]*),\( *# COTRAIN_SYNTH_WEIGHT\)|(\"g1_dex3_cubestacking_synth\", ${COTRAIN_MIX_RATIO}),\1|" "$MIXTURES_FILE"
+        echo "    Mischung: $(python3 -c "print(f'{1-${COTRAIN_MIX_RATIO}:.0%} echt / {${COTRAIN_MIX_RATIO}:.0%} synthetisch')")"
+    fi
 else
     echo "==> Schritt 2/3 -- SKIP_CONVERT=1, übersprungen"
 fi
@@ -81,6 +117,19 @@ if [[ "${SKIP_TRAIN:-0}" != "1" ]]; then
     [[ -n "${WANDB_API_KEY:-}" ]] && export WANDB_API_KEY
     export WANDB_MODE="${WANDB_MODE:-offline}"   # Compute-Nodes ohne Internet -> immer offline
 
+    MAX_STEPS="${MAX_STEPS:-30000}"
+    # Mindestens 5 Zwischen-Checkpoints per Default, unabhaengig von MAX_STEPS (auch bei
+    # kleinen Testlaeufen wie MAX_STEPS=10 -- der alte feste Default 2000 haette dort NULL
+    # Checkpoints gespeichert). Explizites SAVE_STEPS=... hat weiterhin Vorrang.
+    _default_save_steps=$(( MAX_STEPS / 5 ))
+    [[ "$_default_save_steps" -lt 1 ]] && _default_save_steps=1
+    SAVE_STEPS="${SAVE_STEPS:-$_default_save_steps}"
+
+    DEFAULT_DATA_MIX="g1_dex3_blockstacking"
+    [[ "$USE_COTRAIN" == "1" ]] && DEFAULT_DATA_MIX="g1_dex3_blockstacking_cotrain"
+    DEFAULT_RUN_ID="g1_dex3_blockstacking_full"
+    [[ "$USE_COTRAIN" == "1" ]] && DEFAULT_RUN_ID="g1_dex3_blockstacking_cotrain"
+
     accelerate launch \
         --config_file src/unifolm_vla/config/deepseeds/deepspeed_zero2.yaml \
         --num_processes "${NUM_GPUS:-4}" \
@@ -95,20 +144,20 @@ if [[ "${SKIP_TRAIN:-0}" != "1" ]]; then
         --framework.action_model.action_horizon 16 \
         --framework.action_model.future_action_window_size 15 \
         --datasets.vla_data.data_root_dir "$RLDS_ROOT" \
-        --datasets.vla_data.data_mix "${DATA_MIX:-g1_dex3_blockstacking}" \
+        --datasets.vla_data.data_mix "${DATA_MIX:-$DEFAULT_DATA_MIX}" \
         --datasets.vla_data.window_size 1 \
         --datasets.vla_data.per_device_batch_size "${PER_DEVICE_BATCH_SIZE:-2}" \
         "${FREEZE_ARGS[@]}" \
-        --trainer.max_train_steps "${MAX_STEPS:-30000}" \
+        --trainer.max_train_steps "$MAX_STEPS" \
         --trainer.shuffle_buffer_size 500 \
-        --trainer.save_interval "${SAVE_STEPS:-2000}" \
+        --trainer.save_interval "$SAVE_STEPS" \
         --trainer.use_wrist_image True \
         --trainer.use_proprio True \
         --trainer.logging_frequency 50 \
         --trainer.eval_interval 500 \
         --trainer.learning_rate.base "${LEARNING_RATE:-4e-5}" \
         --run_root_dir "$OUTPUT_ROOT" \
-        --run_id "${RUN_ID:-g1_dex3_blockstacking_full}" \
+        --run_id "${RUN_ID:-$DEFAULT_RUN_ID}" \
         --wandb_project "${WANDB_PROJECT:-unifolm_vla_g1_dex3}" \
         --wandb_entity local
 else

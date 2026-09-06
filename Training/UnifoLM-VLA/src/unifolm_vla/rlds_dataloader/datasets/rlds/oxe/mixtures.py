@@ -350,6 +350,16 @@ OXE_NAMED_MIXTURES: Dict[str, List[Tuple[str, float]]] = {
     ],
     "g1_dex3_blockstacking":[
         ("g1_dex3_blockstacking", 1.0),
-    ]
+    ],
+    "g1_dex3_cubestacking_synth":[
+        ("g1_dex3_cubestacking_synth", 1.0),
+    ],
+    # Co-Training: echte + synthetische (teleoperierte Isaac-Lab-)Daten gemischt --
+    # Gewichte hier per sed von entrypoint.sh anhand COTRAIN_MIX_RATIO gepatcht
+    # (Marker-Kommentare COTRAIN_REAL_WEIGHT/COTRAIN_SYNTH_WEIGHT nicht entfernen).
+    "g1_dex3_blockstacking_cotrain":[
+        ("g1_dex3_blockstacking", 0.75),        # COTRAIN_REAL_WEIGHT
+        ("g1_dex3_cubestacking_synth", 0.25),   # COTRAIN_SYNTH_WEIGHT
+    ],
 }
 # fmt: on

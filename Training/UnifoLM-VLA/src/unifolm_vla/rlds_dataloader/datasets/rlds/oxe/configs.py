@@ -76,6 +76,18 @@ OXE_DATASET_CONFIGS = {
         "state_encoding": StateEncoding.JOINT_G1_DEX3,
         "action_encoding": ActionEncoding.JOINT_G1_DEX3,
     },
+    # === g1_dex3_cubestacking_synth Co-Training Dataset (from Fichtl00/Cube_Stacking_synth) ===
+    # Identisches Schema wie g1_dex3_blockstacking (gleiche 3 Kameras, gleiches 28-dim
+    # Joint-Space-Layout) -- nur die Quelle ist unsere eigene CloudXR/OpenXR-teleoperierte
+    # Isaac-Lab-Aufnahme statt echter Roboterdaten. Fuer Co-Training (siehe mixtures.py:
+    # g1_dex3_blockstacking_cotrain).
+    "g1_dex3_cubestacking_synth": {
+        "image_obs_keys": {"primary": "image_primary_high", "secondary": None, "left_wrist": "image_left_wrist", "right_wrist": "image_right_wrist"},
+        "depth_obs_keys": {"primary": None, "secondary": None, "wrist": None},
+        "state_obs_keys": ["state"],
+        "state_encoding": StateEncoding.JOINT_G1_DEX3,
+        "action_encoding": ActionEncoding.JOINT_G1_DEX3,
+    },
     "g1_pack_pencilbox":{
         "image_obs_keys": {"primary": "images_left_top", "secondary": None, "left_wrist": "image_left_wrist", "right_wrist": "image_right_wrist"},
         "depth_obs_keys": {"primary": None, "secondary": None, "wrist": None},
