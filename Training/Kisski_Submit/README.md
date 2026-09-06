@@ -8,7 +8,27 @@ Deployt dieses Repo per Apptainer/SIF-Container auf der KISSKI-HPC und startet d
 - Große Dateien (Datensatz, Checkpoints) laufen für Up-/Download trotzdem über den **Transfer-Node** (`transfer.hpc.gwdg.de`), nicht per `scp`/`rsync` direkt auf den Login-Node.
 - **Geteilter Projekt-Storage mit einer anderen Gruppe** (z.B. `kisski-humrob`): Gruppe 1 (GR00T-Workflow) hat dort schon `data/`, `repo/`, `repo-groot/` liegen. Unsere Daten/Repos landen deshalb bewusst in einem eigenen Unterordner -- `KISSKI_GROUP_SUBDIR` (Default `gruppe2`) unter `KISSKI_PROJECT_DIR` -- statt direkt im gemeinsamen Wurzelverzeichnis.
 
-**Status:** Docker-Image baut erfolgreich und wurde lokal verifiziert -- alle Kernpakete importieren fehlerfrei (`torch`, `flash_attn`, `unifolm_vla`, `lerobot`, `tensorflow`, `deepspeed`), inkl. echtem GPU-Zugriff (`docker run --gpus all` erkennt die lokale GPU korrekt über CUDA). Nach Docker Hub gepusht (`fichtlff/unifolm-vla-kisski:latest`). `apptainer pull` auf dem Login-Node ist der nächste zu verifizierende Schritt (zwei vorherige Versuche über `srun` auf Compute-Partitionen schlugen mit Netzwerk-Timeout fehl -- erwartungsgemäß, siehe oben). Der eigentliche Trainingslauf ist noch nicht getestet. Mechanik (SLURM-Direktiven, Token-Dateien, Apptainer-Bind-Muster) ist aus dem bereits produktiv laufenden GR00T-Workflow eines Kollegen übernommen, aber auf unser eigenes Image + UnifoLM-VLA-Trainingskommando umgeschrieben -- vor dem ersten echten Lauf unbedingt mit kleinen `MAX_STEPS`-Werten verifizieren.
+**Status:** Docker-Image baut erfolgreich und wurde lokal verifiziert -- alle Kernpakete importieren fehlerfrei (`torch`, `flash_attn`, `unifolm_vla`, `lerobot`, `tensorflow`, `deepspeed`), inkl. echtem GPU-Zugriff (`docker run --gpus all` erkennt die lokale GPU korrekt über CUDA). Nach Docker Hub gepusht (`fichtlff/unifolm-vla-kisski:latest`). Ein Test-Job (`MAX_STEPS=10`) wurde bereits eingereicht (siehe [Aktueller Stand](#aktueller-stand-laufender-testlauf) unten) -- der eigentliche Trainingslauf ist noch nicht bestätigt erfolgreich. Mechanik (SLURM-Direktiven, Token-Dateien, Apptainer-Bind-Muster) ist aus dem bereits produktiv laufenden GR00T-Workflow eines Kollegen übernommen, aber auf unser eigenes Image + UnifoLM-VLA-Trainingskommando umgeschrieben.
+
+## Aktueller Stand (laufender Testlauf)
+
+Konkretes Setup für diesen Account (Stand 2026-09-06):
+- **KISSKI-Projekt:** `kisski-humrob` (geteilt mit Gruppe 1) -- `KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/kisski-humrob`
+- **Repo-Checkout auf dem Cluster:** `/user/fabian.fichtl/u29848/.project/dir.project/repo_2/Masterprojekt_G1_CubeStack` (NICHT unter `KISSKI_PROJECT_DIR` -- deshalb `REPO_DIR=...` bei jedem `sbatch` explizit mitgeben)
+- **Login-Node:** `glogin9`/`glogin10` (mehrere Login-Knoten hinter `glogin-gpu.hpc.gwdg.de`)
+- **Docker Hub Image:** `fichtlff/unifolm-vla-kisski:latest`
+
+Checkliste, bevor ein Testlauf tatsächlich das Training erreicht:
+
+| # | Voraussetzung | Status (Stand 2026-09-06) | Befehl |
+|---|---|---|---|
+| 1 | `logs/`-Verzeichnis existiert in `Training/Kisski_Submit/` (sonst kann SLURM keine Log-Datei anlegen und der Job stirbt sofort) | zu prüfen | `mkdir -p logs` |
+| 2 | SIF-Image unter `$HOME/images/unifolm-vla-kisski.sif` | **fehlt noch** (`ls` bestätigt: nicht vorhanden) | `module load apptainer && apptainer pull $HOME/images/unifolm-vla-kisski.sif docker://fichtlff/unifolm-vla-kisski:latest` (auf dem Login-Node, ohne `srun`) |
+| 3 | Datensatz + Basis-VLM unter `$KISSKI_PROJECT_DIR/gruppe2/data/` | **fehlt noch** (`prepare_and_stage_data.sh` noch nicht gelaufen) | `prepare_and_stage_data.sh` von einer Maschine mit Docker + Internet |
+
+Job `15766148` (`MAX_STEPS=10`, `sbatch --export=ALL`) wurde eingereicht, bevor 2 und 3 erledigt waren -- er wird daher voraussichtlich mit einem Fehler zum fehlenden SIF-Image bzw. fehlenden Daten abbrechen, sobald er einen Knoten bekommt. Das ist erwartet und kein neuer Bug; einfach nach Beheben von 1-3 neu einreichen.
+
+`HF_TOKEN`/`WANDB_API_KEY` sind für **diesen** Testlauf NICHT nötig: `SKIP_DOWNLOAD=1` ist der Default (kein Download im Job selbst), und `WANDB_API_KEY` ist bei uns (anders als beim Kollegen) optional.
 
 ## Ablauf
 
@@ -121,5 +141,6 @@ HF_UPLOAD_REPO=<namespace>/unifolm-vla-g1-dex3-full ./fetch_checkpoints.sh
 - `entrypoint.sh` patched die Konstante `HDF5_DATA_DIR` in `rlds_dataset_g1_dex3.py` per `sed` auf den Container-Pfad (die Datei liest den Pfad nicht aus einer Env-Variable) -- funktional plausibel, aber ungetestet.
 - `UnifoLM-VLM-Base`-Downloadpfad (`unitreerobotics/UnifoLM-VLM-Base`) ist nicht gegen einen echten HF-Repo-Namen verifiziert -- ggf. anpassen.
 - Ressourcen-Direktiven (`-G A100:4`, `--mem=384G`, `-t 48:00:00`) sind vom GR00T-Lauf des Kollegen übernommen und müssen ggf. für UnifoLM-VLA neu kalibriert werden (anderes Modell, andere Speicherprofile).
-- `apptainer pull docker://...` auf dem Login-Node ist der nächste Schritt, der gegen echte KISSKI-Hardware verifiziert werden muss.
+- `apptainer pull docker://...` auf dem Login-Node läuft gerade zum ersten Mal gegen echte Hardware (Stand 2026-09-06 noch nicht als abgeschlossen bestätigt) -- damit auch der erste echte Test, ob der Login-Node tatsächlich Internetzugriff auf Docker Hub hat.
 - Der eigentliche Trainingslauf (`entrypoint.sh` Stufe 3, `accelerate launch ... train_unifolm_vla.py`) wurde in diesem Image noch nicht ausgeführt, nur die Imports verifiziert.
+- Aktueller Detailstatus + Checkliste: [Aktueller Stand](#aktueller-stand-laufender-testlauf) oben.
