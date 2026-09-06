@@ -14,14 +14,20 @@
 # stattdessen auf den GWDG VAST-Projekt-Storage (/mnt/vast-kisski/projects/<projekt>/).
 # Der Transfer laeuft ueber den dedizierten Transfer-Node, nicht den Login-Node.
 #
+# KISSKI_PROJECT_DIR ist das GEMEINSAME Projektverzeichnis (z.B. kisski-humrob) --
+# eine ANDERE Gruppe (Gruppe 1, GR00T-Workflow) hat dort ggf. schon eigene Daten/
+# Repos liegen. Landet deshalb bewusst in einem eigenen Unterordner
+# (KISSKI_GROUP_SUBDIR, Default "gruppe2"), nicht direkt in KISSKI_PROJECT_DIR.
+#
 # Usage:
 #   KISSKI_LOGIN_HOST=<username>@glogin-gpu.hpc.gwdg.de \
+#   KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> \
 #   HF_TOKEN=hf_... \
 #   ./prepare_and_stage_data.sh
 #
 #   # Optional, falls abweichend von den Defaults:
 #   KISSKI_TRANSFER_HOST=<username>@transfer.hpc.gwdg.de
-#   KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt>
+#   KISSKI_GROUP_SUBDIR=gruppe2
 
 set -euo pipefail
 
@@ -29,6 +35,8 @@ KISSKI_LOGIN_HOST="${KISSKI_LOGIN_HOST:?Setze KISSKI_LOGIN_HOST=<username>@glogi
 KISSKI_USER="${KISSKI_LOGIN_HOST%@*}"
 KISSKI_TRANSFER_HOST="${KISSKI_TRANSFER_HOST:-${KISSKI_USER}@transfer.hpc.gwdg.de}"
 KISSKI_PROJECT_DIR="${KISSKI_PROJECT_DIR:?Setze KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt>}"
+KISSKI_GROUP_SUBDIR="${KISSKI_GROUP_SUBDIR:-gruppe2}"
+KISSKI_GROUP_DIR="${KISSKI_GROUP_DIR:-$KISSKI_PROJECT_DIR/$KISSKI_GROUP_SUBDIR}"
 IMAGE_NAME="${IMAGE_NAME:-unifolm-vla-kisski:latest}"
 LOCAL_DATA_DIR="${LOCAL_DATA_DIR:-/tmp/unifolm_vla_kisski_data}"
 HF_TOKEN="${HF_TOKEN:?HF_TOKEN muss gesetzt sein (Basis-VLM + Datensatz sind ggf. gated)}"
@@ -48,8 +56,8 @@ docker run --rm \
     -e "SKIP_TRAIN=1" \
     "$IMAGE_NAME"
 
-echo "==> 2/2 rsync zum Transfer-Node ($KISSKI_TRANSFER_HOST) nach ${KISSKI_PROJECT_DIR}/data/ ..."
-ssh "$KISSKI_TRANSFER_HOST" "mkdir -p ${KISSKI_PROJECT_DIR}/data"
-rsync -avz --progress "${LOCAL_DATA_DIR}/" "${KISSKI_TRANSFER_HOST}:${KISSKI_PROJECT_DIR}/data/"
+echo "==> 2/2 rsync zum Transfer-Node ($KISSKI_TRANSFER_HOST) nach ${KISSKI_GROUP_DIR}/data/ ..."
+ssh "$KISSKI_TRANSFER_HOST" "mkdir -p ${KISSKI_GROUP_DIR}/data"
+rsync -avz --progress "${LOCAL_DATA_DIR}/" "${KISSKI_TRANSFER_HOST}:${KISSKI_GROUP_DIR}/data/"
 
-echo "==> Fertig. DATA_DIR auf KISSKI (${KISSKI_PROJECT_DIR}/data) ist bereit fuer SKIP_DOWNLOAD=1 (Default in kisski_submit.sh)."
+echo "==> Fertig. DATA_DIR auf KISSKI (${KISSKI_GROUP_DIR}/data) ist bereit fuer SKIP_DOWNLOAD=1 (Default in kisski_submit.sh)."

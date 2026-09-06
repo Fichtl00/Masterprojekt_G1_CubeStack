@@ -33,7 +33,7 @@
 #   3. Dieses Repo auf den Cluster klonen (git braucht Internet -- auf dem
 #      Login-Node ausfuehren, NICHT im Compute-Job):
 #        git clone --depth 1 https://github.com/Fichtl00/Masterprojekt_G1_CubeStack.git \
-#            /mnt/vast-kisski/projects/<projekt>/repo
+#            /mnt/vast-kisski/projects/<projekt>/gruppe2/repo
 #   4. Tokens EINMALIG in Dateien hinterlegen (mode 600) -- KISSKI setzt
 #      SBATCH_EXPORT=none auf dem Login-Node, das ueberstimmt --export=ALL,
 #      daher werden Tokens robust aus Dateien statt aus der Env gelesen:
@@ -46,7 +46,7 @@
 #   5. Nach dem Lauf: Checkpoints vom Cluster zurueckholen: fetch_checkpoints.sh.
 #
 # Ueberschreibbare Variablen (als Inline-Prefix vor sbatch, MIT --export=ALL):
-#   KISSKI_PROJECT_DIR, REPO_DIR, DATA_DIR, SIF_IMAGE
+#   KISSKI_PROJECT_DIR, KISSKI_GROUP_SUBDIR, REPO_DIR, DATA_DIR, SIF_IMAGE
 #   MAX_STEPS, SAVE_STEPS, GLOBAL_BATCH_SIZE, NUM_GPUS, LEARNING_RATE
 #   FREEZE_BACKBONE (=1 -> wie lokal nur Action-Head, Default 0 = volles Finetuning)
 #   HF_DATASET_REPO, BASE_VLM_REPO, RUN_ID, WANDB_PROJECT
@@ -71,8 +71,16 @@ set -euo pipefail
 #
 # Storage: alles auf dem VAST-Projekt-Storage (persistente SSD, kein Scratch --
 # `/scratch/` wurde am 2026-03-31 abgeschaltet). SIF-Image bevorzugt in $HOME/images
-# (klein), sonst im Projektverzeichnis.
+# (klein, pro Nutzer eh schon getrennt), sonst im Projektverzeichnis.
+#
+# KISSKI_PROJECT_DIR ist das GEMEINSAME Projektverzeichnis (z.B. kisski-humrob) --
+# dort liegen ggf. schon Daten/Repos einer ANDEREN Gruppe (Gruppe 1, GR00T-Workflow).
+# Alles, was diesem Projekt (UnifoLM-VLA, "Gruppe 2") gehoert, liegt bewusst in einem
+# eigenen Unterordner (KISSKI_GROUP_SUBDIR), damit nichts mit Gruppe 1's data/,
+# repo/, repo-groot/ kollidiert.
 KISSKI_PROJECT_DIR="${KISSKI_PROJECT_DIR:-/mnt/vast-kisski/projects/<projekt>}"
+KISSKI_GROUP_SUBDIR="${KISSKI_GROUP_SUBDIR:-gruppe2}"
+KISSKI_GROUP_DIR="${KISSKI_GROUP_DIR:-$KISSKI_PROJECT_DIR/$KISSKI_GROUP_SUBDIR}"
 KISSKI_SIF_DIR="${KISSKI_SIF_DIR:-$HOME/images}"
 pick_sif() {
     local f
@@ -81,13 +89,13 @@ pick_sif() {
 }
 # REPO_DIR: wohin das Repo geklont wurde (kann vom Default abweichen -- siehe
 # Dein tatsaechlicher Clone-Pfad, per REPO_DIR=... vor sbatch --export=ALL setzen).
-REPO_DIR="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}"
+REPO_DIR="${REPO_DIR:-$KISSKI_GROUP_DIR/repo}"
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 SIF_IMAGE="${SIF_IMAGE:-$(pick_sif \
     "$KISSKI_SIF_DIR/unifolm-vla-kisski.sif" \
-    "$KISSKI_PROJECT_DIR/images/unifolm-vla-kisski.sif")}"
-DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
+    "$KISSKI_GROUP_DIR/images/unifolm-vla-kisski.sif")}"
+DATA_DIR="${DATA_DIR:-$KISSKI_GROUP_DIR/data}"
 
 if [[ ! -d "$(dirname "$DATA_DIR")" ]]; then
     echo "FEHLER: Elternverzeichnis von DATA_DIR nicht erreichbar: $(dirname "$DATA_DIR")" >&2

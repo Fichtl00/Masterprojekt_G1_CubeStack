@@ -6,6 +6,7 @@ Deployt dieses Repo per Apptainer/SIF-Container auf der KISSKI-HPC und startet d
 - `apptainer pull` läuft **auf dem Login-Node** (`glogin-gpu.hpc.gwdg.de`), **nicht** per `srun` auf einem Compute-Node.
 - **`/scratch/` wurde am 2026-03-31 abgeschaltet.** Alle Daten (Datensatz, Checkpoints) gehören auf den **VAST-Projekt-Storage** (`/mnt/vast-kisski/projects/<projekt>/`), nicht auf Scratch.
 - Große Dateien (Datensatz, Checkpoints) laufen für Up-/Download trotzdem über den **Transfer-Node** (`transfer.hpc.gwdg.de`), nicht per `scp`/`rsync` direkt auf den Login-Node.
+- **Geteilter Projekt-Storage mit einer anderen Gruppe** (z.B. `kisski-humrob`): Gruppe 1 (GR00T-Workflow) hat dort schon `data/`, `repo/`, `repo-groot/` liegen. Unsere Daten/Repos landen deshalb bewusst in einem eigenen Unterordner -- `KISSKI_GROUP_SUBDIR` (Default `gruppe2`) unter `KISSKI_PROJECT_DIR` -- statt direkt im gemeinsamen Wurzelverzeichnis.
 
 **Status:** Docker-Image baut erfolgreich und wurde lokal verifiziert -- alle Kernpakete importieren fehlerfrei (`torch`, `flash_attn`, `unifolm_vla`, `lerobot`, `tensorflow`, `deepspeed`), inkl. echtem GPU-Zugriff (`docker run --gpus all` erkennt die lokale GPU korrekt über CUDA). Nach Docker Hub gepusht (`fichtlff/unifolm-vla-kisski:latest`). `apptainer pull` auf dem Login-Node ist der nächste zu verifizierende Schritt (zwei vorherige Versuche über `srun` auf Compute-Partitionen schlugen mit Netzwerk-Timeout fehl -- erwartungsgemäß, siehe oben). Der eigentliche Trainingslauf ist noch nicht getestet. Mechanik (SLURM-Direktiven, Token-Dateien, Apptainer-Bind-Muster) ist aus dem bereits produktiv laufenden GR00T-Workflow eines Kollegen übernommen, aber auf unser eigenes Image + UnifoLM-VLA-Trainingskommando umgeschrieben -- vor dem ersten echten Lauf unbedingt mit kleinen `MAX_STEPS`-Werten verifizieren.
 
@@ -17,13 +18,13 @@ Deployt dieses Repo per Apptainer/SIF-Container auf der KISSKI-HPC und startet d
 1. build_and_transfer_sif.sh ──push──► <namespace>/...
                                             │
                                             └── ssh ──► apptainer pull → $HOME/images/*.sif
-2. prepare_and_stage_data.sh  ──rsync (über Transfer-Node)─► /mnt/vast-kisski/projects/<projekt>/data/
+2. prepare_and_stage_data.sh  ──rsync (über Transfer-Node)─► /mnt/vast-kisski/projects/<projekt>/gruppe2/data/
 3. git clone (manuell, auf Login-Node -- git braucht Internet, das hat nur der Login-Node)
                                                               4. sbatch kisski_submit.sh ──►  apptainer run
                                                                                                 (SKIP_DOWNLOAD=1,
                                                                                                  nur Konvertierung
                                                                                                  + Training)
-5. fetch_checkpoints.sh       ◄──rsync (über Transfer-Node)── /mnt/vast-kisski/projects/<projekt>/data/outputs_unifolm_vla/
+5. fetch_checkpoints.sh       ◄──rsync (über Transfer-Node)── /mnt/vast-kisski/projects/<projekt>/gruppe2/data/outputs_unifolm_vla/
    (+ optional Push nach HF)
 ```
 
@@ -56,7 +57,7 @@ Auf dem **Login-Node** (der hat Internet, der Compute-Node nicht):
 
 ```bash
 git clone --depth 1 https://github.com/Fichtl00/Masterprojekt_G1_CubeStack.git \
-    /mnt/vast-kisski/projects/<projekt>/repo
+    /mnt/vast-kisski/projects/<projekt>/gruppe2/repo
 ```
 
 ## 4. Tokens hinterlegen + Job einreichen
@@ -64,7 +65,7 @@ git clone --depth 1 https://github.com/Fichtl00/Masterprojekt_G1_CubeStack.git \
 ```bash
 printf 'hf_DEIN_TOKEN\n'  > ~/.hf_token  && chmod 600 ~/.hf_token   # nur falls SKIP_DOWNLOAD=0 gebraucht wird
 printf 'DEIN_WANDB_KEY\n' > ~/.wandb_key && chmod 600 ~/.wandb_key  # optional
-cd /mnt/vast-kisski/projects/<projekt>/repo/Training/Kisski_Submit
+cd /mnt/vast-kisski/projects/<projekt>/gruppe2/repo/Training/Kisski_Submit
 KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> \
 sbatch --export=ALL kisski_submit.sh
 ```
