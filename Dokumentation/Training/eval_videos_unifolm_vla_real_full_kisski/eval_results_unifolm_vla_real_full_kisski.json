@@ -1,0 +1,43 @@
+{
+  "task": "Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-CubeStack-JointSpace",
+  "num_episodes": 5,
+  "num_success": 0,
+  "success_rate": 0.0,
+  "episodes": [
+    {
+      "episode": 1,
+      "success": false,
+      "num_steps": 512,
+      "duration_s": 52.25,
+      "success_step": -1
+    },
+    {
+      "episode": 2,
+      "success": false,
+      "num_steps": 512,
+      "duration_s": 53.64,
+      "success_step": -1
+    },
+    {
+      "episode": 3,
+      "success": false,
+      "num_steps": 512,
+      "duration_s": 50.47,
+      "success_step": -1
+    },
+    {
+      "episode": 4,
+      "success": false,
+      "num_steps": 512,
+      "duration_s": 52.6,
+      "success_step": -1
+    },
+    {
+      "episode": 5,
+      "success": false,
+      "num_steps": 512,
+      "duration_s": 51.59,
+      "success_step": -1
+    }
+  ]
+}

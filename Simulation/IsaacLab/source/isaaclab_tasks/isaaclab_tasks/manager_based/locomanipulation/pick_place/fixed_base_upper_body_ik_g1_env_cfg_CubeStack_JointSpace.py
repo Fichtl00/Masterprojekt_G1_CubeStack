@@ -462,18 +462,44 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
         hands_actuator.stiffness = 100.0  # standard = 20.0 (5x)
         hands_actuator.damping = 4.47     # standard = 2.0 (~sqrt(5)x)
 
+        # FUND (Closed-Loop-Eval mit echtem UnifoLM-VLA-Checkpoint): G1_29DOF_CFG setzt in
+        # seiner init_state.joint_pos NUR Bein-Gelenke -- Arm/Hand-Gelenke bleiben beim USD-
+        # Default (effektiv 0.0), eine deutlich angehobene, unnatuerliche Arm-Pose (nicht die
+        # Pose, in der der reale Trainingsdatensatz beginnt). Der Checkpoint wurde aber exakt
+        # auf Trajektorien trainiert, die bei der echten Datensatz-Startpose (Frame 0,
+        # DATASET_INIT_STATE in g1_dex3_cfg_1_cube_stack.py) beginnen -- eine Reset-Pose so
+        # weit ausserhalb der Trainingsverteilung fuehrt dazu, dass die Policy nie in einen
+        # ihr bekannten Zustand zurueckfindet (beobachtet: Arme bleiben ueber alle 500 Steps
+        # nahezu unveraendert angehoben, 0/5 Erfolge). Fix: dieselbe Startpose wie die
+        # Pink-IK-Variante uebernehmen (DEX3_ARM_HAND_JOINT_NAMES_ORDERED hat dieselbe
+        # Gelenk-Reihenfolge wie ALL_JOINTS_ORDERED, siehe Docstring oben -- 1:1 zippable).
+        from isaaclab_tasks.manager_based.locomanipulation.pick_place.g1_dex3_cfg_1_cube_stack import (
+            DATASET_INIT_STATE,
+        )
+
+        self.robot.init_state.joint_pos.update(
+            dict(zip(DEX3_ARM_HAND_JOINT_NAMES_ORDERED, DATASET_INIT_STATE))
+        )
+
 
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP -- direkte Gelenkwinkel-Steuerung (kein Pink-IK,
     siehe Docstring am Dateianfang)."""
 
+    # FUND (Closed-Loop-Eval): use_default_offset=True liefert target = default_joint_pos +
+    # action. dataset_statistics.json zeigt aber, dass "action" und "proprio" (state) nahezu
+    # identische Mittelwerte pro Dimension haben (z.B. Dim 0: action=-0.386, proprio=-0.388) --
+    # das Modell sagt also ABSOLUTE Gelenkwinkel-Ziele voraus, keine Deltas. Mit
+    # use_default_offset=True wuerde default_joint_pos (jetzt korrekt = DATASET_INIT_STATE,
+    # siehe SceneCfg.__post_init__ unten) ein zweites Mal aufaddiert -- das Ziel waere
+    # systematisch verschoben statt korrekt. Deshalb hier False: target = scale * action.
     upper_body_joint_pos = base_mdp.JointPositionActionCfg(
         asset_name="robot",
         joint_names=DEX3_ARM_HAND_JOINT_NAMES_ORDERED,
         preserve_order=True,  # sonst Artikulations-Reihenfolge statt Datensatz-Reihenfolge
         scale=1.0,
-        use_default_offset=True,
+        use_default_offset=False,
     )
 
 
@@ -484,6 +510,23 @@ class EventCfg:
     reset_cubes = EventTerm(
         func=reset_cubes_disjoint,
         mode="reset",
+    )
+
+    # FUND (Closed-Loop-Eval): Articulation.reset() schreibt NIE Gelenkzustand in die
+    # Simulation (nur Aktuator-/Wrench-Reset) -- ohne dieses EventTerm bleibt der Roboter bei
+    # jedem Episoden-Reset in der rohen USD-Spawn-Pose (Arme ~0 rad, deutlich angehoben,
+    # ausserhalb der Trainingsverteilung des Checkpoints), TROTZ korrektem
+    # `init_state.joint_pos`/`default_joint_pos` (der nur als Nachschlagewert existiert, aber
+    # ohne explizites Event nie in die Physik geschrieben wird). position_range/velocity_range
+    # = (0.0, 0.0) macht daraus einen rein deterministischen Reset auf DATASET_INIT_STATE.
+    reset_robot_joints = EventTerm(
+        func=base_mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "position_range": (0.0, 0.0),
+            "velocity_range": (0.0, 0.0),
+        },
     )
 
     increase_gripper_friction = EventTerm(

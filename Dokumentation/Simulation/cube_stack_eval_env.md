@@ -376,6 +376,59 @@ python deployment/isaaclab_bridge/vla_dds_client.py \
 getestet** -- naechster Schritt ist ein echter Lauf, um Restfehler (SHM-Groessen,
 Timing/Race-Conditions zwischen Bruecke und Client, Joint-Limit-Clamping etc.) zu finden.
 
+## Erster echter Closed-Loop-Testlauf (`eval_cubestack_unifolm_vla.py`, Checkpoint `Fichtl00/Unifolm-VLA_real`)
+
+Erster tatsaechlicher End-to-End-Lauf von `Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-CubeStack-JointSpace`
+gegen einen echten UniFolm-VLA-Checkpoint (`Fichtl00/Unifolm-VLA_real`, `final_model/pytorch_model.pt`
+-- volles Backbone-Finetuning auf dem echten `g1_dex3_blockstacking`-Datensatz, auf KISSKI trainiert,
+`run_id: g1_dex3_blockstacking_full`). Server: `deployment/model_server/run_real_eval_server.py`
+(`unnorm_key g1_dex3_blockstacking`, per `dataset_statistics.json` bestaetigt).
+
+### 2 reale Bugs gefunden und behoben (Env lief laut obigem Status vorher nur bis "konstruierbar", nie geskriptet geschlossen)
+
+1. **Reset-Pose falsch.** `robot: ArticulationCfg = G1_29DOF_CFG` setzt in seiner
+   `init_state.joint_pos` NUR Bein-Gelenke (`.*_hip_pitch_joint`, `.*_knee_joint`,
+   `.*_ankle_pitch_joint`) -- Arm-/Hand-Gelenke blieben beim USD-Rohdefault (~0 rad,
+   sichtbar deutlich angehobene, unnatuerliche Pose). Zusaetzlich: `Articulation.reset()`
+   (IsaacLab-Kern, `articulation.py`) schreibt **grundsaetzlich nie** Gelenkzustand in die
+   Simulation (nur Aktuator-/Wrench-Reset) -- ohne explizites `EventTerm` blieb der Roboter
+   bei jedem Episoden-Reset dauerhaft in der rohen USD-Spawn-Pose, unabhaengig vom
+   `init_state.joint_pos`-Konfigwert. Der Checkpoint wurde aber exakt auf Trajektorien
+   trainiert, die bei der echten Datensatz-Startpose (Frame 0, `DATASET_INIT_STATE` in
+   `g1_dex3_cfg_1_cube_stack.py`) beginnen -- eine Reset-Pose so weit ausserhalb der
+   Trainingsverteilung fuehrte dazu, dass die Policy nie in einen ihr bekannten Zustand
+   zurueckfand (empirisch: Arme blieben ueber alle 500 Steps praktisch unveraendert
+   angehoben, 0/5 Erfolge).
+   Fix: `SceneCfg.__post_init__` uebernimmt jetzt `DATASET_INIT_STATE`
+   (`DEX3_ARM_HAND_JOINT_NAMES_ORDERED` hat dieselbe Gelenk-Reihenfolge wie
+   `ALL_JOINTS_ORDERED`, daher 1:1 zippable) in `self.robot.init_state.joint_pos`, PLUS ein
+   neues `reset_robot_joints`-EventTerm (`mdp.reset_joints_by_offset`,
+   `position_range=velocity_range=(0.0, 0.0)` -- rein deterministischer Reset auf
+   `default_joint_pos`), da sonst nichts diesen Wert tatsaechlich in die Physik schreibt.
+2. **Doppelter Offset in der Action.** `upper_body_joint_pos` hatte
+   `use_default_offset=True`, also `target = default_joint_pos + action`. Per
+   `dataset_statistics.json` verifiziert (nicht geraten): `action`- und `proprio`-Mittelwerte
+   sind pro Dimension nahezu identisch (z.B. Dim 0: `action=-0.386`, `proprio=-0.388`) --
+   das Modell sagt also ABSOLUTE Gelenkwinkel-Ziele voraus, keine Deltas relativ zu
+   irgendeinem Default. Mit `use_default_offset=True` wurde `default_joint_pos` (nach Fix 1
+   korrekt = `DATASET_INIT_STATE`) ein zweites Mal aufaddiert -- das Ziel war systematisch
+   verschoben statt korrekt. Fix: `use_default_offset=False` (`target = scale * action`).
+
+### Ergebnis nach beiden Fixes
+
+Reset-Pose empirisch verifiziert (`robot.data.joint_pos` nach `env.reset()` == `default_joint_pos`,
+keine manuellen `step()`-Aufrufe mehr noetig). Sichtbar deutlich sinnvollere Starthaltung
+(Haende nahe am Tisch statt in der Luft) und erkennbare Wuerfel-Interaktion (Positions-
+verschiebung in mind. einer Episode) -- aber weiterhin **0/5 vollstaendige Erfolge** in 5
+Episoden a 500 Steps. Wahrscheinlich Sim-to-Real-Gap (Checkpoint nur auf echten
+Kamerabildern trainiert, keine Domain Randomization/Sim-Daten im Mix) und/oder generell
+niedrige Erfolgsrate bei dieser recht anspruchsvollen 3-Wuerfel-Stapelaufgabe mit
+Dex3-Hand -- mit den vorliegenden 5 Episoden nicht abschliessend unterscheidbar.
+
+5 Multicam-Grid-Videos (`cam_left_high`/`cam_right_high`/`cam_left_wrist`/`cam_right_wrist`,
+2x2) + Ergebnis-JSON:
+[`../Training/eval_videos_unifolm_vla_real_full_kisski/`](../Training/eval_videos_unifolm_vla_real_full_kisski/).
+
 ## Naechste Schritte
 
 1. Einmal headless starten, sowohl fuer
