@@ -6,3 +6,4 @@ Vollständiger Workflow inkl. Befehlen: [`../../Dokumentation/Simulation/1_cube_
 
 - `replay_render_hdf5.py` — spielt eine ohne Kameras aufgenommene HDF5-Episode erneut ab und rendert dabei die Kamera-Sensoren nach (kein Mimic nötig).
 - `convert_hdf5_to_Lerobot.py` — konvertiert eine (annotierte) HDF5-Datei ins LeRobot-Format zum Push nach Hugging Face.
+- `remap_state_28dim.py` — behebt nachträglich einen 43→28-dim-Fehler in bereits aufgezeichnetem `robot_joint_pos` (reines Array-Remapping anhand der echten Gelenknamen, keine Neusimulation nötig, wenn Kameras schon vorhanden sind). Siehe [`../../Dokumentation/Simulation/1_cube_stack_teleop_env.md`](../../Dokumentation/Simulation/1_cube_stack_teleop_env.md#state-dim-fix).

@@ -102,7 +102,12 @@ def main():
     # Determine state and action dimensions from first episode
     first_ep = all_episodes[0]
     action_dim = first_ep["actions"].shape[1]  # 28
-    state_keys = ["robot_joint_pos", "left_eef_pos", "left_eef_quat", "right_eef_pos", "right_eef_quat"]
+    # NUR robot_joint_pos: EE-Pose-Felder entfernt (fuer den KISSKI-Kollegen-Check
+    # nicht gebraucht) -- robot_joint_pos ist jetzt bereits 28-dim, exakt in
+    # Action-Reihenfolge (siehe ALL_JOINTS_ORDERED-Fix in
+    # fixed_base_upper_body_ik_g1_env_cfg_1_cube_stack.py), state_dim also = 28,
+    # nicht mehr 57.
+    state_keys = ["robot_joint_pos"]
     
     # Build state array: concatenate relevant observations
     def build_state(obs):
@@ -186,14 +191,16 @@ def main():
         for task in tasks_meta:
             f.write(json.dumps(task) + "\n")
 
-    # Compute state index ranges
-    state_ranges = {}
-    idx = 0
-    for key in state_keys:
-        if key in first_ep["obs"]:
-            dim = first_ep["obs"][key].shape[1]
-            state_ranges[key] = {"start": idx, "end": idx + dim}
-            idx += dim
+    # state ist jetzt (robot_joint_pos allein, 28-dim, ALL_JOINTS_ORDERED) exakt
+    # dieselbe Struktur wie action -- Ranges hier deshalb identisch zu action
+    # gesetzt statt generisch aus state_keys abgeleitet (waere sonst ein einziger
+    # flacher "robot_joint_pos"-Key ohne die semantische Aufteilung).
+    state_ranges = {
+        "left_arm": {"start": 0, "end": 7},
+        "right_arm": {"start": 7, "end": 14},
+        "left_hand": {"start": 14, "end": 21},
+        "right_hand": {"start": 21, "end": 28},
+    }
 
     # Write meta/modality.json
     modality = {

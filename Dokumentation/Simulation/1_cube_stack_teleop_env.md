@@ -66,6 +66,50 @@ Erfolgs-Check und Aufgabenbeschreibung: **rot unten → gelb Mitte → grün obe
    ./isaaclab.sh -p -m huggingface_hub.cli.hf upload <namespace>/<dataset-repo> ./datasets/1_cube_stack/lerobot_out . --repo-type dataset
    ```
 
+## State-Dim-Fix (`observation.state` 57 → 28)
+
+Ein Kollege stellte beim Training fest, dass `observation.state` im exportierten
+LeRobot-Datensatz 57-dim statt 28-dim war (muss exakt der Action-Reihenfolge
+entsprechen: left_arm(7)+right_arm(7)+left_hand(7)+right_hand(7) = 28, keine
+Beine/Hüfte/EE-Pose). Ursache: der `robot_joint_pos`-ObsTerm filterte nicht nach
+Gelenknamen (`SceneEntityCfg("robot")` ohne `joint_names`) und lieferte deshalb
+alle 43 DOF in unsortierter interner USD-Artikulationsreihenfolge; zusätzlich
+gingen 4 EE-Pose-Felder (`left_eef_pos/quat`, `right_eef_pos/quat`) mit in den
+State-Export ein (43 + 14 = 57).
+
+Fix in zwei Stellen:
+
+1. **Env-Config** (`fixed_base_upper_body_ik_g1_env_cfg_1_cube_stack.py`,
+   `ObservationsCfg.PolicyCfg.robot_joint_pos`): explizite, benannte
+   Gelenkauswahl mit `joint_names=ALL_JOINTS_ORDERED, preserve_order=True` statt
+   ungefiltertem `SceneEntityCfg("robot")` — betrifft alle **neu** aufgezeichneten
+   Episoden.
+2. **`convert_hdf5_to_Lerobot.py`**: `state_keys` auf `["robot_joint_pos"]`
+   reduziert (EE-Pose-Felder raus), `state_ranges` an die Action-Semantik
+   (left_arm/right_arm/left_hand/right_hand) angeglichen statt generisch aus
+   `state_keys` abgeleitet.
+
+Für **bereits aufgezeichnete** Datensätze (Kameras schon live mitgerendert, echte
+Teleop-Erfolgs-Flags schon vorhanden) ist keine Neusimulation nötig: die 28
+benötigten Gelenke sind in den alten 43 bereits vollständig enthalten, nur in
+falscher Reihenfolge/mit Überschuss. `scripts/tools/remap_state_28dim.py`
+ermittelt einmalig die echten 43 Gelenknamen (kurze Env-Instanz, `env.reset()`)
+und remappt `robot_joint_pos` per Index-Selektion — deutlich schneller als
+`replay_render_hdf5.py`, und ohne das Risiko, durch Kontaktphysik-
+Nichtdeterminismus beim Replay abweichende Erfolgsergebnisse zu bekommen (das ist
+uns beim Neusimulieren von batch01/batch02 tatsächlich passiert: 16→11
+erfolgreiche Demos, siehe Commit-Historie). Für Rohaufnahmen **ohne** Kameras
+(z.B. `batch01/dataset_g1_1_cube_stack.hdf5`) bleibt `replay_render_hdf5.py`
+trotzdem nötig, da dort noch gar keine Kamerabilder existieren.
+
+```bash
+./isaaclab.sh -p scripts/tools/remap_state_28dim.py \
+  --task Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-1_cube_stack \
+  --input_file ./datasets/1_cube_stack/batch02/dataset_g1_1_cube_stack.hdf5 \
+  --output_file ./datasets/1_cube_stack/batch02/dataset_g1_1_cube_stack_28dim.hdf5 \
+  --enable_pinocchio --enable_cameras --headless
+```
+
 ## CloudXR/OpenXR-Setup
 
 Docker-Container-Start (aus `IsaacLab/docker/`):
