@@ -80,16 +80,16 @@ from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.pink_contr
 )
 
 # Portierte Roboter-Config (Actuator-Gains + Dataset-Startpose) -- siehe Docstring oben.
-# ALL_JOINTS_ORDERED: identische Reihenfolge wie DEX3_ARM_HAND_JOINT_NAMES_ORDERED in
-# ...CubeStack_JointSpace.py (gleiche 28 Gelenke: 14 Arm + 14 Dex3-Finger, rechts
-# asymmetrisch Index-vor-Middle) -- fuer robot_joint_pos unten verwendet, damit
-# observation.state exakt 28-dim in Action-Reihenfolge ist (statt 43-dim voller,
-# unsortierter Roboterzustand). Fund: robot_joint_pos ohne joint_names-Filter lieferte
-# alle 43 DOF in interner USD-Artikulationsreihenfolge -- Haende matchten empirisch
-# 1:1 gegen die Action-Reihenfolge, Arme nicht (vermutlich IK/Cartesian-Aktion vs.
-# reiner Joint-State) -- Fix: explizite, benannte Gelenkauswahl statt Wertevergleich.
+# STATE_JOINTS_ORDERED (NICHT ALL_JOINTS_ORDERED!): fuer robot_joint_pos unten verwendet,
+# damit observation.state exakt 28-dim ist und dimensionsweise mit UNSEREM eigenen
+# Action-Term uebereinstimmt (statt 43-dim voller, unsortierter Roboterzustand). Fund:
+# robot_joint_pos ohne joint_names-Filter lieferte alle 43 DOF in interner USD-
+# Artikulationsreihenfolge. ALL_JOINTS_ORDERED (Realdatensatz-Konvention, Haende nach
+# Seite gruppiert) ist dafuer NICHT die richtige Referenz -- unser eigener Pink-IK-
+# Action-Term verwendet fuer die Haende eine andere (interleaved) Reihenfolge, siehe
+# ausfuehrlichen Kommentar bei STATE_JOINTS_ORDERED in g1_dex3_cfg_1_cube_stack.py.
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.g1_dex3_cfg_1_cube_stack import (
-    ALL_JOINTS_ORDERED,
+    STATE_JOINTS_ORDERED,
     G1_DEX3_CFG_1_CUBE_STACK,
 )
 
@@ -503,12 +503,11 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         actions = ObsTerm(func=manip_mdp.last_action)
-        # Nur die 28 aktuierten Arm+Hand-Gelenke, in Action-Reihenfolge (ALL_JOINTS_ORDERED)
-        # -- NICHT alle 43 DOF (das schliesst Beine/Huefte unsortiert nach interner USD-
-        # Artikulationsreihenfolge ein, siehe Kommentar beim ALL_JOINTS_ORDERED-Import oben).
+        # Nur die 28 aktuierten Arm+Hand-Gelenke, in unserer eigenen Action-Reihenfolge
+        # (STATE_JOINTS_ORDERED, NICHT ALL_JOINTS_ORDERED) -- siehe Kommentar beim Import oben.
         robot_joint_pos = ObsTerm(
             func=base_mdp.joint_pos,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=ALL_JOINTS_ORDERED, preserve_order=True)},
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=STATE_JOINTS_ORDERED, preserve_order=True)},
         )
         robot_root_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
         robot_root_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})

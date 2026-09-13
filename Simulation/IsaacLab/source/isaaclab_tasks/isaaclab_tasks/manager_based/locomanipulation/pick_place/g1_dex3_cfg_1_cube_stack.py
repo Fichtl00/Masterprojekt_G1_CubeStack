@@ -54,6 +54,35 @@ RIGHT_DEX3_JOINTS = [
 ]
 ALL_JOINTS_ORDERED = LEFT_ARM_JOINTS + RIGHT_ARM_JOINTS + LEFT_DEX3_JOINTS + RIGHT_DEX3_JOINTS
 
+# ACHTUNG: NICHT dieselbe Reihenfolge wie die Hand-Action-Dimensionen unseres eigenen
+# Pink-IK-Action-Terms (G1_UPPER_BODY_IK_ACTION_CFG in configs/pink_controller_cfg.py)!
+# ALL_JOINTS_ORDERED/LEFT_DEX3_JOINTS/RIGHT_DEX3_JOINTS stammen aus der Realdatensatz-
+# Konvention (Kommentar oben: "deckt sich mit unserem eigenen g1_dex3_blockstacking-
+# Datensatz-Schema") und gruppieren die Hand-Gelenke nach Seite (erst alle linken, dann
+# alle rechten Finger). Der tatsaechliche Action-Term ruft aber
+# ``self._asset.find_joints(self.cfg.hand_joint_names)`` OHNE ``preserve_order=True`` auf
+# (siehe isaaclab/envs/mdp/actions/pink_task_space_actions.py, _initialize_joint_info) --
+# das Ergebnis liegt deshalb in roher USD-Artikulationsreihenfolge (pro Fingertyp ueber
+# beide Haende interleaved: index_0/middle_0/thumb_0 L+R, dann die _1-Gelenke, dann die
+# beiden thumb_2), NICHT nach Seite gruppiert. Empirisch verifiziert per
+# ``env.action_manager._terms["upper_body_ik"]._hand_joint_names``.
+#
+# Fuer den robot_joint_pos-ObsTerm (observation.state) MUSS diese Liste verwendet werden,
+# damit State und Action innerhalb des synthetischen Datensatzes dimensionsweise
+# uebereinstimmen (Fund eines Kollegen: min-Abstand-Check zeigte 13 von 14 Hand-Dimensionen
+# falsch ausgerichtet, als noch ALL_JOINTS_ORDERED fuer den State verwendet wurde). Die
+# Arm-Actions sind ohnehin ein Cartesian-Pose-Ziel (Position+Quaternion je Handgelenk,
+# kein Gelenkwinkel) -- dort ist keine 1:1 State/Action-Uebereinstimmung moeglich/noetig,
+# LEFT_ARM_JOINTS/RIGHT_ARM_JOINTS bleiben fuer den State unveraendert.
+HAND_JOINTS_ACTION_ORDER = [
+    "left_hand_index_0_joint", "left_hand_middle_0_joint", "left_hand_thumb_0_joint",
+    "right_hand_index_0_joint", "right_hand_middle_0_joint", "right_hand_thumb_0_joint",
+    "left_hand_index_1_joint", "left_hand_middle_1_joint", "left_hand_thumb_1_joint",
+    "right_hand_index_1_joint", "right_hand_middle_1_joint", "right_hand_thumb_1_joint",
+    "left_hand_thumb_2_joint", "right_hand_thumb_2_joint",
+]
+STATE_JOINTS_ORDERED = LEFT_ARM_JOINTS + RIGHT_ARM_JOINTS + HAND_JOINTS_ACTION_ORDER
+
 # Startpose = observation.state aus Frame 0 / Episode 0 von unitreerobotics/G1_Dex3_BlockStacking_Dataset,
 # unverändert aus dem Original übernommen. Reihenfolge = ALL_JOINTS_ORDERED.
 DATASET_INIT_STATE = [

@@ -2,7 +2,7 @@
 """Remap an already-recorded HDF5 dataset's ``robot_joint_pos`` from 43-dim
 (unsortierte interne USD-Artikulationsreihenfolge, alle DOF inkl. Beine/Huefte)
 auf 28-dim (nur die aktuierten Arm+Hand-Gelenke, sortiert exakt nach der
-Action-Reihenfolge ``ALL_JOINTS_ORDERED``).
+eigenen Action-Term-Reihenfolge (``STATE_JOINTS_ORDERED``, NICHT ``ALL_JOINTS_ORDERED``).
 
 Hintergrund: der urspruengliche ObsTerm fuer ``robot_joint_pos`` filterte nicht
 nach Gelenknamen (``SceneEntityCfg("robot")`` ohne ``joint_names``/``preserve_order``)
@@ -58,7 +58,7 @@ import gymnasium as gym
 if args_cli.enable_pinocchio:
     import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
 
-from isaaclab_tasks.manager_based.locomanipulation.pick_place.g1_dex3_cfg_1_cube_stack import ALL_JOINTS_ORDERED
+from isaaclab_tasks.manager_based.locomanipulation.pick_place.g1_dex3_cfg_1_cube_stack import STATE_JOINTS_ORDERED
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
@@ -74,7 +74,7 @@ def main():
     env.close()
 
     assert len(raw_joint_names) == 43, f"Expected 43 raw joints, got {len(raw_joint_names)}"
-    idx = [raw_joint_names.index(name) for name in ALL_JOINTS_ORDERED]
+    idx = [raw_joint_names.index(name) for name in STATE_JOINTS_ORDERED]
     assert len(set(idx)) == 28
 
     shutil.copyfile(args_cli.input_file, args_cli.output_file)

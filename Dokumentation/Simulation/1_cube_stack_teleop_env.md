@@ -81,13 +81,34 @@ Fix in zwei Stellen:
 
 1. **Env-Config** (`fixed_base_upper_body_ik_g1_env_cfg_1_cube_stack.py`,
    `ObservationsCfg.PolicyCfg.robot_joint_pos`): explizite, benannte
-   Gelenkauswahl mit `joint_names=ALL_JOINTS_ORDERED, preserve_order=True` statt
+   Gelenkauswahl mit `joint_names=STATE_JOINTS_ORDERED, preserve_order=True` statt
    ungefiltertem `SceneEntityCfg("robot")` — betrifft alle **neu** aufgezeichneten
    Episoden.
 2. **`convert_hdf5_to_Lerobot.py`**: `state_keys` auf `["robot_joint_pos"]`
    reduziert (EE-Pose-Felder raus), `state_ranges` an die Action-Semantik
    (left_arm/right_arm/left_hand/right_hand) angeglichen statt generisch aus
    `state_keys` abgeleitet.
+
+**Nachtrag (zweite Korrekturrunde):** die erste Fassung dieses Fixes verwendete
+`ALL_JOINTS_ORDERED` (Realdatensatz-Konvention, Hand-Gelenke nach Seite gruppiert:
+erst alle linken, dann alle rechten Finger) als Referenz-Reihenfolge für den State.
+Ein Kollege wies darauf hin, dass diese Konvention nicht zwingend mit der Reihenfolge
+unseres EIGENEN Action-Terms übereinstimmt — sein Verifikations-Check zeigte danach
+13 von 14 Hand-Dimensionen falsch ausgerichtet. Ursache, empirisch verifiziert direkt
+am Action-Term (`PinkInverseKinematicsAction._hand_joint_names`, siehe
+`pink_task_space_actions.py::_initialize_joint_info`): `find_joints(hand_joint_names)`
+wird dort OHNE `preserve_order=True` aufgerufen, das Ergebnis liegt deshalb in roher
+USD-Artikulationsreihenfolge (pro Fingertyp über beide Hände interleaved:
+`index_0/middle_0/thumb_0` L+R, dann die `_1`-Gelenke, dann die beiden `thumb_2`) --
+nicht nach Seite gruppiert wie `ALL_JOINTS_ORDERED`/`DEX3_ARM_HAND_JOINT_NAMES_ORDERED`
+(beide Realdatensatz-Konvention, siehe `...CubeStack_JointSpace.py`). Fix: neue
+Konstante `STATE_JOINTS_ORDERED` in `g1_dex3_cfg_1_cube_stack.py` (Arme unverändert,
+Hand-Reihenfolge jetzt exakt wie `_hand_joint_names`) -- `ALL_JOINTS_ORDERED` bleibt
+unverändert bestehen (wird weiterhin für `DATASET_INIT_STATE` gebraucht).
+Die Arm-Actions sind ohnehin ein Cartesian-Pose-Ziel (Position+Quaternion je
+Handgelenk, kein Gelenkwinkel) -- dort ist keine 1:1 State/Action-Übereinstimmung
+möglich/nötig, nur die Hand-Dimensionen sind beide Male echter Gelenkwinkel-Raum und
+daher direkt vergleichbar.
 
 Für **bereits aufgezeichnete** Datensätze (Kameras schon live mitgerendert, echte
 Teleop-Erfolgs-Flags schon vorhanden) ist keine Neusimulation nötig: die 28
